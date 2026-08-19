@@ -47,7 +47,15 @@ def coldstart_usd(boot_seconds: float, hourly_rate_usd: float) -> float:
 
 def throughput_knee(steps: list[StepResult]) -> StepResult:
     """The sweep step with peak aggregate throughput — where the headline
-    $/1M is quoted."""
+    $/1M is quoted.
+
+    Considers only steps with no request failures: failed requests can inflate
+    throughput (quick 503s), understating cost. On throughput ties, returns the
+    step with lower concurrency (cheaper to run at the same speed).
+    """
     if not steps:
         raise ValueError("cannot find a knee in an empty sweep")
-    return max(steps, key=lambda s: s.output_tokens_per_sec)
+    clean_steps = [s for s in steps if s.requests_failed == 0]
+    if not clean_steps:
+        raise ValueError("no clean steps (all had request failures)")
+    return max(clean_steps, key=lambda s: s.output_tokens_per_sec)
