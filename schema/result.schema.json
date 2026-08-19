@@ -1,0 +1,402 @@
+{
+  "$defs": {
+    "Hardware": {
+      "properties": {
+        "gpu_name": {
+          "title": "Gpu Name",
+          "type": "string"
+        },
+        "gpu_count": {
+          "default": 1,
+          "title": "Gpu Count",
+          "type": "integer"
+        },
+        "driver_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Driver Version"
+        },
+        "vllm_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vllm Version"
+        },
+        "peak_vram_bytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peak Vram Bytes"
+        }
+      },
+      "required": [
+        "gpu_name"
+      ],
+      "title": "Hardware",
+      "type": "object"
+    },
+    "NcclRow": {
+      "properties": {
+        "size_bytes": {
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "busbw_gbps": {
+          "title": "Busbw Gbps",
+          "type": "number"
+        },
+        "algbw_gbps": {
+          "title": "Algbw Gbps",
+          "type": "number"
+        }
+      },
+      "required": [
+        "size_bytes",
+        "busbw_gbps",
+        "algbw_gbps"
+      ],
+      "title": "NcclRow",
+      "type": "object"
+    },
+    "Pricing": {
+      "description": "Rates as they actually were at run time. Never edited after the fact.",
+      "properties": {
+        "hourly_rate_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hourly Rate Usd"
+        },
+        "input_per_mtok_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Per Mtok Usd"
+        },
+        "output_per_mtok_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Per Mtok Usd"
+        }
+      },
+      "title": "Pricing",
+      "type": "object"
+    },
+    "Stats": {
+      "properties": {
+        "p50": {
+          "title": "P50",
+          "type": "number"
+        },
+        "p90": {
+          "title": "P90",
+          "type": "number"
+        },
+        "min": {
+          "title": "Min",
+          "type": "number"
+        },
+        "max": {
+          "title": "Max",
+          "type": "number"
+        }
+      },
+      "required": [
+        "p50",
+        "p90",
+        "min",
+        "max"
+      ],
+      "title": "Stats",
+      "type": "object"
+    },
+    "StepResult": {
+      "description": "One concurrency level of the sweep.",
+      "properties": {
+        "concurrency": {
+          "title": "Concurrency",
+          "type": "integer"
+        },
+        "requests_completed": {
+          "title": "Requests Completed",
+          "type": "integer"
+        },
+        "requests_failed": {
+          "title": "Requests Failed",
+          "type": "integer"
+        },
+        "wall_seconds": {
+          "title": "Wall Seconds",
+          "type": "number"
+        },
+        "output_tokens_total": {
+          "title": "Output Tokens Total",
+          "type": "integer"
+        },
+        "output_tokens_per_sec": {
+          "title": "Output Tokens Per Sec",
+          "type": "number"
+        },
+        "ttft_ms": {
+          "$ref": "#/$defs/Stats"
+        },
+        "tpot_ms": {
+          "$ref": "#/$defs/Stats"
+        }
+      },
+      "required": [
+        "concurrency",
+        "requests_completed",
+        "requests_failed",
+        "wall_seconds",
+        "output_tokens_total",
+        "output_tokens_per_sec",
+        "ttft_ms",
+        "tpot_ms"
+      ],
+      "title": "StepResult",
+      "type": "object"
+    },
+    "Target": {
+      "properties": {
+        "kind": {
+          "enum": [
+            "vllm",
+            "openrouter",
+            "nccl"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "precision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Precision"
+        },
+        "tp_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tp Size"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        }
+      },
+      "required": [
+        "kind",
+        "model"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "Timings": {
+      "properties": {
+        "download_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Download Seconds"
+        },
+        "boot_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Boot Seconds"
+        }
+      },
+      "title": "Timings",
+      "type": "object"
+    },
+    "Workload": {
+      "description": "Defaults are the global constraints. Overriding these breaks comparability.",
+      "properties": {
+        "input_tokens": {
+          "default": 1024,
+          "title": "Input Tokens",
+          "type": "integer"
+        },
+        "output_tokens": {
+          "default": 256,
+          "title": "Output Tokens",
+          "type": "integer"
+        },
+        "temperature": {
+          "default": 0.0,
+          "title": "Temperature",
+          "type": "number"
+        },
+        "ignore_eos": {
+          "default": true,
+          "title": "Ignore Eos",
+          "type": "boolean"
+        },
+        "max_model_len": {
+          "default": 32768,
+          "title": "Max Model Len",
+          "type": "integer"
+        }
+      },
+      "title": "Workload",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "valid": {
+      "default": true,
+      "title": "Valid",
+      "type": "boolean"
+    },
+    "invalid_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Invalid Reason"
+    },
+    "partial": {
+      "default": false,
+      "title": "Partial",
+      "type": "boolean"
+    },
+    "target": {
+      "$ref": "#/$defs/Target"
+    },
+    "hardware": {
+      "$ref": "#/$defs/Hardware"
+    },
+    "pricing": {
+      "$ref": "#/$defs/Pricing"
+    },
+    "timings": {
+      "$ref": "#/$defs/Timings"
+    },
+    "workload": {
+      "$ref": "#/$defs/Workload"
+    },
+    "run_index": {
+      "default": 1,
+      "title": "Run Index",
+      "type": "integer"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/StepResult"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "nccl_rows": {
+      "items": {
+        "$ref": "#/$defs/NcclRow"
+      },
+      "title": "Nccl Rows",
+      "type": "array"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "target",
+    "hardware",
+    "pricing",
+    "timings",
+    "workload"
+  ],
+  "title": "BenchResult",
+  "type": "object"
+}
