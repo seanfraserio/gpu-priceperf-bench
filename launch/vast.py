@@ -4,6 +4,18 @@ from __future__ import annotations
 import json
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
+
+# Stock upstream image — there is no custom build. The vLLM version pin is this
+# tag; the harness itself is cloned at boot by onstart.sh.
+IMAGE = "vllm/vllm-openai:v0.27.1"
+
+ONSTART_PATH = Path(__file__).resolve().parent.parent / "runner-vllm" / "onstart.sh"
+
+
+def onstart_script() -> str:
+    """The script Vast runs inside the stock image, passed verbatim."""
+    return ONSTART_PATH.read_text()
 
 
 @dataclass
@@ -37,6 +49,7 @@ def build_env(
     hourly_usd: float,
     ttl_minutes: int,
     sink_url: str | None,
+    gppb_ref: str = "main",
 ) -> dict[str, str]:
     env = {
         "MODEL": model,
@@ -47,6 +60,8 @@ def build_env(
         "TTL_MINUTES": str(ttl_minutes),
         "SWEEP": "1,2,4,8,16,32,64,128,256",
         "MAX_MODEL_LEN": "32768",
+        # Pinned revision of the harness the instance clones at boot.
+        "GPPB_REF": gppb_ref,
     }
     if sink_url:
         env["SINK_URL"] = sink_url

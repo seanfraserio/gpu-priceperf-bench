@@ -29,5 +29,14 @@ both sit on one axis:
     ./scripts/dryrun.sh        # free, proves the path
     python -m report.generate  # rebuild charts from committed results/
 
+## Running a benchmark
+
+Instances run the **stock** `vllm/vllm-openai` image — there is no image to
+build or host. `runner-vllm/onstart.sh` is passed to the instance verbatim: it
+arms a TTL self-destruct, clones this repo at a pinned revision, then serves
+and sweeps. `GPPB_REF` selects the revision; a rented GPU never runs branch tip.
+
+    python -m launch.reap        # before and after every session
+
 Raw results live in `results/`, append-only. Bad runs are marked
 `"valid": false` with a reason rather than deleted.

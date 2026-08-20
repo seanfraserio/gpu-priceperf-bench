@@ -52,3 +52,30 @@ def test_stale_instances_defaults_ttl_when_missing():
     an untracked GPU is the expensive failure mode."""
     now = 10_000.0
     assert stale_instances([{"id": 13, "start_date": now - 4000}], now) == [13]
+
+
+def test_onstart_runs_the_stock_pinned_vllm_image():
+    """No custom image — the version pin lives in the upstream tag."""
+    from launch.vast import IMAGE
+    assert IMAGE == "vllm/vllm-openai:v0.27.1"
+
+
+def test_onstart_arms_the_ttl_before_fetching_anything():
+    """A hang in the clone or the weight download must still hit the TTL —
+    so the self-destruct is armed before the first thing that can block."""
+    from launch.vast import onstart_script
+    script = onstart_script()
+    ttl_at = script.index("poweroff -f")
+    assert ttl_at < script.index("git clone")
+    assert ttl_at < script.index("vllm serve")
+
+
+def test_onstart_pins_the_harness_revision():
+    """A rented GPU must never run whatever happens to be on the branch tip."""
+    from launch.vast import onstart_script
+    assert "GPPB_REF" in onstart_script()
+
+
+def test_build_env_carries_the_harness_revision():
+    env = build_env("m", "fp8", 1, 1, 1.0, 45, None, gppb_ref="abc1234")
+    assert env["GPPB_REF"] == "abc1234"
