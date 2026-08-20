@@ -61,6 +61,7 @@ def build_env(
     ttl_minutes: int,
     sink_url: str | None,
     gppb_ref: str = "main",
+    sink_token: str | None = None,
 ) -> dict[str, str]:
     env = {
         "MODEL": model,
@@ -75,7 +76,11 @@ def build_env(
         "GPPB_REF": gppb_ref,
     }
     if sink_url:
+        # The token is useless without the URL and the URL is useless without
+        # the token — an instance that cannot upload burns money for nothing.
         env["SINK_URL"] = sink_url
+        if sink_token:
+            env["SINK_TOKEN"] = sink_token
     return env
 
 

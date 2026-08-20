@@ -35,6 +35,15 @@ class SpendCap:
         self.spent += n
 
 
+def project_level_tokens(concurrency: int, workload: Workload, requests_per_step: int = 0) -> int:
+    """Output tokens one level will bill.
+
+    `ignore_eos` forces every request to emit exactly `output_tokens`, so this
+    is the real figure rather than an optimistic floor."""
+    requests = requests_per_step or concurrency * 4
+    return requests * workload.output_tokens
+
+
 def pin_provider_body(provider: str) -> dict:
     """Force one provider. A fallback would silently mislabel the result."""
     return {"provider": {"order": [provider], "allow_fallbacks": False}}
@@ -88,14 +97,18 @@ async def run_openrouter(
         partial=True,
     )
 
+    async def before_step(level: int) -> None:
+        # Refuse the level while refusing still prevents the spend.
+        cap.charge(project_level_tokens(level, workload))
+
     async def on_step(steps):
-        cap.charge(steps[-1].output_tokens_total)
         result.steps = list(steps)
         await sink.put(result)
 
     await run_sweep(
         BASE_URL, model, levels, workload, on_step,
         api_key=api_key, extra_body=pin_provider_body(provider),
+        before_step=before_step,
     )
     result.partial = False
     await sink.put(result)

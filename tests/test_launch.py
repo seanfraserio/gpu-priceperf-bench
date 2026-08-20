@@ -104,3 +104,17 @@ def test_nccl_onstart_pins_both_revisions():
     script = nccl_onstart_script()
     assert "GPPB_REF" in script
     assert "NCCL_TESTS_REF" in script
+
+
+def test_build_env_carries_the_sink_credentials_together():
+    """A URL without its token means the instance uploads nothing and the run
+    is paid for twice — they travel as a pair."""
+    env = build_env("m", "fp8", 1, 1, 1.0, 45, "https://sink.example.com",
+                    sink_token="s3cret")
+    assert env["SINK_URL"] == "https://sink.example.com"
+    assert env["SINK_TOKEN"] == "s3cret"
+
+
+def test_build_env_omits_the_token_when_there_is_no_sink():
+    env = build_env("m", "fp8", 1, 1, 1.0, 45, None, sink_token="s3cret")
+    assert "SINK_TOKEN" not in env

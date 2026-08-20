@@ -42,5 +42,10 @@ roughly 2-3 minutes of billed time, and nothing to host.
 
     python -m launch.reap        # before and after every session
 
+Instances power off the moment a run ends, so results only survive if they are
+uploaded. `SINK_URL` + `SINK_TOKEN` point at the write-authenticated sink
+Worker in `sink-worker/`, which stores each `BenchResult` in R2. Without them
+the run writes to a container filesystem that is about to disappear.
+
 Raw results live in `results/`, append-only. Bad runs are marked
 `"valid": false` with a reason rather than deleted.

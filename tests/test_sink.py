@@ -61,3 +61,38 @@ async def test_r2_sink_raises_on_upload_failure():
 def test_make_sink_falls_back_to_local_without_a_url(tmp_path):
     assert isinstance(make_sink(None, tmp_path), LocalSink)
     assert isinstance(make_sink("https://x/y", tmp_path), R2Sink)
+
+
+async def test_r2_sink_authenticates_the_upload():
+    """The sink endpoint is write-authenticated — an unauthenticated PUT would
+    mean anyone can forge published benchmark results."""
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["auth"] = request.headers.get("Authorization")
+        return httpx.Response(200)
+
+    sink = R2Sink(
+        "https://sink.example.com/runs",
+        token="s3cret",
+        transport=httpx.MockTransport(handler),
+    )
+    await sink.put(_result("xyz"))
+    assert seen["auth"] == "Bearer s3cret"
+
+
+async def test_r2_sink_surfaces_a_rejected_token():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401)
+
+    sink = R2Sink("https://sink.example.com/runs", token="wrong",
+                  transport=httpx.MockTransport(handler))
+    with pytest.raises(RuntimeError, match="401"):
+        await sink.put(_result())
+
+
+def test_make_sink_reads_the_token_from_the_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("SINK_TOKEN", "from-env")
+    sink = make_sink("https://sink.example.com/runs", tmp_path)
+    assert isinstance(sink, R2Sink)
+    assert sink.token == "from-env"

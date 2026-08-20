@@ -80,9 +80,14 @@ async def run_sweep(
     on_step: Callable[[list[StepResult]], Awaitable[None]],
     api_key: str | None = None,
     extra_body: dict | None = None,
+    before_step: Callable[[int], Awaitable[None]] | None = None,
 ) -> list[StepResult]:
+    """`before_step` runs ahead of a level's requests — budget guards belong
+    there, where refusing still prevents the spend."""
     steps: list[StepResult] = []
     for level in levels:
+        if before_step is not None:
+            await before_step(level)
         steps.append(
             await run_step(base_url, model, level, workload, api_key, extra_body)
         )

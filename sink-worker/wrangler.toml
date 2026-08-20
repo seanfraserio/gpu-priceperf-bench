@@ -1,0 +1,9 @@
+name = "gppb-sink"
+main = "src/index.ts"
+compatibility_date = "2026-08-19"
+
+# SINK_TOKEN is a secret, never a var:
+#   npx wrangler secret put SINK_TOKEN
+[[r2_buckets]]
+binding = "RESULTS"
+bucket_name = "gppb-results"

@@ -3,6 +3,7 @@ the object with a more complete result, so a preempted run keeps whatever it
 managed to publish."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import httpx
@@ -22,17 +23,30 @@ class LocalSink:
 
 
 class R2Sink:
-    def __init__(self, put_url_prefix: str, transport: httpx.BaseTransport | None = None):
+    """Uploads through the sink Worker (see sink-worker/), which authenticates
+    the write and puts the object in R2. Unauthenticated writes would let
+    anyone forge a published benchmark result."""
+
+    def __init__(
+        self,
+        put_url_prefix: str,
+        token: str | None = None,
+        transport: httpx.BaseTransport | None = None,
+    ):
         self.put_url_prefix = put_url_prefix.rstrip("/")
+        self.token = token
         self._transport = transport
 
     async def put(self, result: BenchResult) -> str:
         url = f"{self.put_url_prefix}/{result.run_id}.json"
+        headers = {"Content-Type": "application/json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
         async with httpx.AsyncClient(transport=self._transport) as client:
             response = await client.put(
                 url,
                 content=result.model_dump_json(indent=2).encode(),
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 timeout=60.0,
             )
         if response.status_code >= 300:
@@ -41,4 +55,8 @@ class R2Sink:
 
 
 def make_sink(sink_url: str | None, local_dir: Path = Path("results")):
-    return R2Sink(sink_url) if sink_url else LocalSink(local_dir)
+    """SINK_TOKEN never appears on a command line — the runner reads it from
+    the instance environment."""
+    if sink_url:
+        return R2Sink(sink_url, token=os.environ.get("SINK_TOKEN"))
+    return LocalSink(local_dir)

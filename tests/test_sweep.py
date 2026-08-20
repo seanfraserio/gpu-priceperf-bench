@@ -73,3 +73,27 @@ async def test_run_sweep_invokes_callback_after_every_level(monkeypatch):
     steps = await run_sweep("http://x", "m", [1, 2, 4], Workload(), on_step)
     assert len(steps) == 3
     assert seen == [1, 2, 3], "partial results must be emitted after each level"
+
+
+async def test_run_sweep_calls_before_step_ahead_of_each_level(monkeypatch):
+    """Budget guards need a hook that runs before the requests, not after."""
+    from gppb import sweep
+    from gppb.client import RequestMetrics
+
+    order: list[str] = []
+
+    async def fake_stream_one(client, base_url, model, prompt, workload, api_key=None, extra_body=None):
+        order.append("request")
+        return RequestMetrics(100.0, 10.0, 256, 2660.0)
+
+    monkeypatch.setattr(sweep, "stream_one", fake_stream_one)
+
+    async def before_step(level):
+        order.append(f"before-{level}")
+
+    async def on_step(steps):
+        order.append("after")
+
+    await run_sweep("http://x", "m", [1], Workload(), on_step, before_step=before_step)
+    assert order[0] == "before-1"
+    assert order[-1] == "after"
