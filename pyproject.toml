@@ -13,3 +13,6 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# launch/ and report/ are repo-root packages, not part of the installed
+# distribution — pytest must see the root regardless of how it is invoked.
+pythonpath = ["."]
