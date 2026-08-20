@@ -79,3 +79,28 @@ def test_onstart_pins_the_harness_revision():
 def test_build_env_carries_the_harness_revision():
     env = build_env("m", "fp8", 1, 1, 1.0, 45, None, gppb_ref="abc1234")
     assert env["GPPB_REF"] == "abc1234"
+
+
+def test_nccl_runs_a_stock_cuda_devel_image():
+    """nccl-tests needs nvcc, so the base is the devel image — still stock."""
+    from launch.vast import NCCL_IMAGE
+    assert NCCL_IMAGE == "nvidia/cuda:12.6.0-devel-ubuntu22.04"
+
+
+def test_nccl_onstart_arms_the_ttl_before_the_build():
+    """Compiling nccl-tests is billed GPU time — a hung apt or make must still
+    hit the self-destruct."""
+    from launch.vast import nccl_onstart_script
+    script = nccl_onstart_script()
+    ttl_at = script.index("poweroff -f")
+    assert ttl_at < script.index("apt-get")
+    assert ttl_at < script.index("all_reduce_perf")
+
+
+def test_nccl_onstart_pins_both_revisions():
+    """The harness ref and nccl-tests itself are both pinned — an upstream
+    change to the benchmark must never silently alter published numbers."""
+    from launch.vast import nccl_onstart_script
+    script = nccl_onstart_script()
+    assert "GPPB_REF" in script
+    assert "NCCL_TESTS_REF" in script

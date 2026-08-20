@@ -36,6 +36,10 @@ build or host. `runner-vllm/onstart.sh` is passed to the instance verbatim: it
 arms a TTL self-destruct, clones this repo at a pinned revision, then serves
 and sweeps. `GPPB_REF` selects the revision; a rented GPU never runs branch tip.
 
+The multi-GPU interconnect run works the same way on the stock
+`nvidia/cuda` devel image, compiling nccl-tests at a pinned tag on the box —
+roughly 2-3 minutes of billed time, and nothing to host.
+
     python -m launch.reap        # before and after every session
 
 Raw results live in `results/`, append-only. Bad runs are marked

@@ -10,12 +10,23 @@ from pathlib import Path
 # tag; the harness itself is cloned at boot by onstart.sh.
 IMAGE = "vllm/vllm-openai:v0.27.1"
 
-ONSTART_PATH = Path(__file__).resolve().parent.parent / "runner-vllm" / "onstart.sh"
+# nccl-tests has no official binary distribution, so its runner uses the stock
+# CUDA devel image and compiles at boot. Still no image to build or host.
+NCCL_IMAGE = "nvidia/cuda:12.6.0-devel-ubuntu22.04"
+
+_ROOT = Path(__file__).resolve().parent.parent
+ONSTART_PATH = _ROOT / "runner-vllm" / "onstart.sh"
+NCCL_ONSTART_PATH = _ROOT / "runner-nccl" / "onstart.sh"
 
 
 def onstart_script() -> str:
     """The script Vast runs inside the stock image, passed verbatim."""
     return ONSTART_PATH.read_text()
+
+
+def nccl_onstart_script() -> str:
+    """Same contract for the multi-GPU interconnect run."""
+    return NCCL_ONSTART_PATH.read_text()
 
 
 @dataclass
