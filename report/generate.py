@@ -11,7 +11,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 from gppb.cost import (  # noqa: E402
-    api_usd_per_mtok, coldstart_usd, selfhost_usd_per_mtok, throughput_knee,
+    api_usd_per_mtok, coldstart_usd, saturated, selfhost_usd_per_mtok,
+    throughput_knee,
 )
 from gppb.models import BenchResult  # noqa: E402
 
@@ -22,6 +23,11 @@ class CostRow:
     usd_per_mtok: float
     tokens_per_sec: float
     coldstart_usd: float | None
+    # The concurrency levels this run actually swept. Two runs that swept
+    # different levels are different measurements and must never be averaged.
+    levels: tuple[int, ...] = ()
+    # False when the curve was still climbing at the last level tested.
+    saturated: bool = True
 
 
 def load_results(directory: Path) -> list[BenchResult]:
@@ -37,6 +43,8 @@ def cost_rows(results: list[BenchResult]) -> list[CostRow]:
     rows: list[CostRow] = []
     for result in results:
         knee = throughput_knee(result.steps)
+        levels = tuple(step.concurrency for step in result.steps)
+        is_saturated = saturated(result.steps)
         if result.target.kind == "openrouter":
             rows.append(CostRow(
                 label=result.target.provider or "unknown",
@@ -48,6 +56,8 @@ def cost_rows(results: list[BenchResult]) -> list[CostRow]:
                 ),
                 tokens_per_sec=knee.output_tokens_per_sec,
                 coldstart_usd=None,
+                levels=levels,
+                saturated=is_saturated,
             ))
         else:
             rate = result.pricing.hourly_rate_usd or 0.0
@@ -56,20 +66,31 @@ def cost_rows(results: list[BenchResult]) -> list[CostRow]:
                 usd_per_mtok=selfhost_usd_per_mtok(rate, knee.output_tokens_per_sec),
                 tokens_per_sec=knee.output_tokens_per_sec,
                 coldstart_usd=coldstart_usd(result.timings.boot_seconds or 0.0, rate),
+                levels=levels,
+                saturated=is_saturated,
             ))
     return rows
 
 
 def median_rows(rows: list[CostRow]) -> list[CostRow]:
     """Collapse the 3 runs per config to their median."""
-    grouped: dict[str, list[CostRow]] = defaultdict(list)
+    # Grouped by sweep shape as well as label: a run preempted at concurrency 4
+    # and a run that reached 256 are not repeats of each other, and averaging
+    # them would quietly move the headline number.
+    grouped: dict[tuple[str, tuple[int, ...]], list[CostRow]] = defaultdict(list)
     for row in rows:
-        grouped[row.label].append(row)
+        grouped[(row.label, row.levels)].append(row)
 
     collapsed = []
-    for label, group in grouped.items():
+    for (label, levels), group in grouped.items():
+        # An upper bound is always marked, whether or not a fuller run exists
+        # to compare it against.
+        if not group[0].saturated and levels:
+            label = f"{label} (\u2264{levels[-1]})"
         collapsed.append(CostRow(
             label=label,
+            levels=levels,
+            saturated=group[0].saturated,
             usd_per_mtok=statistics.median(r.usd_per_mtok for r in group),
             tokens_per_sec=statistics.median(r.tokens_per_sec for r in group),
             coldstart_usd=(

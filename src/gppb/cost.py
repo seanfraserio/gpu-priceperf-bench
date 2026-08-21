@@ -59,3 +59,16 @@ def throughput_knee(steps: list[StepResult]) -> StepResult:
     if not clean_steps:
         raise ValueError("no clean steps (all had request failures)")
     return max(clean_steps, key=lambda s: s.output_tokens_per_sec)
+
+
+def saturated(steps: list[StepResult]) -> bool:
+    """Whether the sweep actually found the hardware's throughput ceiling.
+
+    If peak throughput lands on the highest concurrency tested, the curve was
+    still climbing when the sweep stopped: the peak is a floor on what the GPU
+    can do, so the $/1M derived from it is an upper bound, not a measurement.
+    Saying so is the difference between a benchmark and a guess."""
+    clean = [s for s in steps if s.requests_failed == 0]
+    if len(clean) < 2:
+        return False
+    return throughput_knee(steps).concurrency < max(s.concurrency for s in clean)
