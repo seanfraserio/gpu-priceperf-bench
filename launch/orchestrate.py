@@ -154,9 +154,15 @@ def run_matrix(
     limit: int | None = None,
     dry_run: bool = True,
     reserve_usd: float = 1.00,
+    skip: int = 0,
 ) -> list[Run]:
-    """Work the matrix until it is done or the budget says stop."""
-    planned = build_matrix()
+    """Work the matrix until it is done or the budget says stop.
+
+    `skip` drops the first N planned runs. A multi-hour paid sweep will be
+    interrupted — this one was — and resuming from the start would buy the
+    same results twice. The matrix is deterministic and ordered, so an offset
+    is enough to resume from."""
+    planned = build_matrix()[skip:]
     if limit is not None:
         planned = planned[:limit]
     if dry_run:
@@ -196,10 +202,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ref", default="main", help="harness revision to run")
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--skip", type=int, default=0,
+                        help="drop the first N planned runs (resume a sweep)")
     parser.add_argument("--go", action="store_true", help="actually spend money")
     args = parser.parse_args()
 
-    result = run_matrix(gppb_ref=args.ref, limit=args.limit, dry_run=not args.go)
+    result = run_matrix(gppb_ref=args.ref, limit=args.limit,
+                        dry_run=not args.go, skip=args.skip)
     if not args.go:
         total = sum(
             estimate_run_usd(MODELS[r.model_key], TIERS[r.tier_key]) for r in result

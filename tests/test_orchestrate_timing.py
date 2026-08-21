@@ -65,3 +65,17 @@ def test_backstop_reaches_the_container():
     )
     assert env["TTL_MINUTES"] == str(orch.CONTAINER_TTL_MINUTES)
     assert env["TTL_BACKSTOP_MINUTES"] == str(orch.CONTAINER_BACKSTOP_MINUTES)
+
+
+def test_skip_resumes_a_sweep_without_repaying_for_finished_runs():
+    """A multi-hour paid sweep will be interrupted — this one already was. If
+    resuming means starting from run 1, the interruption costs the whole bill
+    again, so the plan has to be resumable from a known offset."""
+    full = orch.build_matrix()
+    resumed = orch.run_matrix(skip=2, dry_run=True)
+    assert resumed == full[2:]
+
+
+def test_skip_and_limit_compose():
+    """--limit counts the runs actually attempted, not the ones skipped."""
+    assert len(orch.run_matrix(skip=2, limit=3, dry_run=True)) == 3
