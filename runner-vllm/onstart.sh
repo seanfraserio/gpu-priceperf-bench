@@ -6,13 +6,36 @@
 # at boot into a container that already spends minutes downloading weights.
 set -euo pipefail
 
+# self-destruct-begin
+# `poweroff` is denied in an unprivileged container — on a real instance it
+# failed with "Operation not permitted" while the meter kept running. Vast
+# gives every container a scoped key and its own label, which together can
+# destroy exactly this instance and nothing else on the account.
+self_destruct() {
+  local id="${VAST_CONTAINERLABEL#C.}"
+  if [ -n "${CONTAINER_API_KEY:-}" ] && [ -n "${id:-}" ]; then
+    echo "self-destruct: destroying instance ${id} via API"
+    curl -sS -X DELETE \
+      "https://console.vast.ai/api/v0/instances/${id}/" \
+      -H "Authorization: Bearer ${CONTAINER_API_KEY}" \
+      -H "Content-Type: application/json" \
+      -d '{}' || true
+  else
+    echo "self-destruct: no container API key; falling back to poweroff"
+  fi
+  # Best effort, and harmless when the API call already worked.
+  poweroff -f 2>/dev/null || true
+}
+# self-destruct-end
+
 # 0. Arm the self-destruct FIRST, before any command that can fail or hang.
-# This script runs under `set -e`; anything above the TTL that exits non-zero
-# leaves an instance billing with nothing to stop it. TTL_MINUTES is read
-# before /etc/environment because that file may not be sourced yet — the
-# default is deliberately conservative.
-TTL_MINUTES="${TTL_MINUTES:-45}"
-( sleep $((TTL_MINUTES * 60)); echo "TTL reached, powering off"; poweroff -f ) &
+# This script runs under `set -e`; anything above this point that exits
+# non-zero leaves an instance billing with nothing to stop it.
+# The instance environment is not readable yet, so this can only use a fixed
+# backstop. It is deliberately longer than any real run: its job is to catch a
+# script that dies before the configured TTL below ever arms.
+TTL_BACKSTOP_MINUTES="${TTL_BACKSTOP_MINUTES:-90}"
+( sleep $((TTL_BACKSTOP_MINUTES * 60)); echo "backstop TTL reached"; self_destruct ) &
 
 # Vast writes instance env into /etc/environment; a non-login onstart shell
 # does not pick it up on its own. A malformed line in that file must not kill
@@ -24,8 +47,10 @@ if [ -f /etc/environment ]; then
   set +a
   set -e
 fi
-# Re-read TTL in case the instance environment overrides the default.
+# Now that the instance environment is loaded, arm the real TTL. Whichever
+# timer fires first wins; the backstop above only matters if we never got here.
 TTL_MINUTES="${TTL_MINUTES:-45}"
+( sleep $((TTL_MINUTES * 60)); echo "TTL reached"; self_destruct ) &
 
 
 : "${MODEL:?MODEL is required}"
@@ -37,10 +62,8 @@ MAX_MODEL_LEN="${MAX_MODEL_LEN:-32768}"
 GPPB_REPO="${GPPB_REPO:-https://github.com/seanfraserio/gpu-priceperf-bench.git}"
 GPPB_REF="${GPPB_REF:-main}"
 
-# 1. Arm the TTL before anything else can hang — clone, pip, weight download
-# and vLLM boot all sit behind this. Primary budget guard.
 
-shutdown_now() { echo "run finished, powering off"; poweroff -f; }
+shutdown_now() { echo "run finished"; self_destruct; }
 trap shutdown_now EXIT
 
 # 2. Fetch the harness at a pinned revision. A rented GPU never runs whatever
@@ -48,13 +71,13 @@ trap shutdown_now EXIT
 git clone --filter=blob:none "${GPPB_REPO}" /opt/gppb-src
 git -C /opt/gppb-src checkout "${GPPB_REF}"
 export PYTHONPATH=/opt/gppb-src/src
-pip install --no-cache-dir hf_transfer "pydantic>=2.7" "httpx>=0.27"
+pip3 install --no-cache-dir hf_transfer "pydantic>=2.7" "httpx>=0.27"
 export HF_HUB_ENABLE_HF_TRANSFER=1
 export PYTHONUNBUFFERED=1
 
 # 3. Download weights, timed separately so it never pollutes benchmark numbers.
 DL_START=$(date +%s)
-python -c "
+python3 -c "
 from huggingface_hub import snapshot_download
 snapshot_download('${MODEL}')
 "
@@ -85,4 +108,4 @@ vllm serve "${MODEL}" \
   --port 8000 &
 
 # 5. Benchmark. run_vllm waits for /health and records boot_seconds itself.
-python -m gppb.run_vllm
+python3 -m gppb.run_vllm
