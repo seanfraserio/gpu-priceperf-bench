@@ -49,5 +49,16 @@ uploaded. `SINK_URL` + `SINK_TOKEN` point at the write-authenticated sink
 Worker in `sink-worker/`, which stores each `BenchResult` in R2. Without them
 the run writes to a container filesystem that is about to disappear.
 
+## The serving sweep
+
+    python -m launch.orchestrate --ref <sha>          # plan only, spends nothing
+    python -m launch.orchestrate --ref <sha> --go     # rent and run
+
+Runs are sequential: parallel rentals finish sooner but multiply the number of
+instances that can be stranded if the driver dies. Cheapest tier goes first, so
+a budget that runs out has still bought the widest coverage. A credit check
+before every run holds back a reserve, and cells whose model cannot fit the
+card are excluded rather than rented to watch them OOM.
+
 Raw results live in `results/`, append-only. Bad runs are marked
 `"valid": false` with a reason rather than deleted.
