@@ -1,0 +1,222 @@
+{
+  "schema_version": "1",
+  "run_id": "vllm-NVIDIA-GeForce-RTX-5090-tp1-18a3d148",
+  "valid": true,
+  "invalid_reason": null,
+  "partial": false,
+  "target": {
+    "kind": "vllm",
+    "model": "Qwen/Qwen3-8B",
+    "precision": "bfloat16",
+    "tp_size": 1,
+    "provider": null
+  },
+  "hardware": {
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_count": 1,
+    "driver_version": null,
+    "vllm_version": "0.27.1",
+    "peak_vram_bytes": 30339497984
+  },
+  "pricing": {
+    "hourly_rate_usd": 0.3494,
+    "input_per_mtok_usd": null,
+    "output_per_mtok_usd": null
+  },
+  "timings": {
+    "download_seconds": 402.0,
+    "boot_seconds": 341.5144193172455
+  },
+  "workload": {
+    "input_tokens": 1024,
+    "output_tokens": 256,
+    "temperature": 0.0,
+    "ignore_eos": true,
+    "max_model_len": 32768
+  },
+  "run_index": 2,
+  "steps": [
+    {
+      "concurrency": 1,
+      "requests_completed": 4,
+      "requests_failed": 0,
+      "wall_seconds": 10.84585037000943,
+      "output_tokens_total": 1024,
+      "output_tokens_per_sec": 94.41398922776304,
+      "ttft_ms": {
+        "p50": 96.12517850473523,
+        "p90": 136.6895060054958,
+        "min": 94.47639691643417,
+        "max": 136.6895060054958
+      },
+      "tpot_ms": {
+        "p50": 10.216864441320592,
+        "p90": 10.216914980179247,
+        "min": 10.212764976655736,
+        "max": 10.216914980179247
+      }
+    },
+    {
+      "concurrency": 2,
+      "requests_completed": 8,
+      "requests_failed": 0,
+      "wall_seconds": 11.40129813097883,
+      "output_tokens_total": 2048,
+      "output_tokens_per_sec": 179.62866828605368,
+      "ttft_ms": {
+        "p50": 130.0987729919143,
+        "p90": 171.82598600629717,
+        "min": 94.62583996355534,
+        "max": 171.82598600629717
+      },
+      "tpot_ms": {
+        "p50": 10.657383911722505,
+        "p90": 10.793212078529976,
+        "min": 10.523634093959688,
+        "max": 10.793212078529976
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests_completed": 16,
+      "requests_failed": 0,
+      "wall_seconds": 12.58013136102818,
+      "output_tokens_total": 4096,
+      "output_tokens_per_sec": 325.59278456256374,
+      "ttft_ms": {
+        "p50": 303.1940639484674,
+        "p90": 323.86330096051097,
+        "min": 100.23175296373665,
+        "max": 324.2832110263407
+      },
+      "tpot_ms": {
+        "p50": 11.12698762558912,
+        "p90": 11.90201098455445,
+        "min": 11.079003784221177,
+        "max": 11.913512329406599
+      }
+    },
+    {
+      "concurrency": 8,
+      "requests_completed": 32,
+      "requests_failed": 0,
+      "wall_seconds": 14.246948607964441,
+      "output_tokens_total": 8192,
+      "output_tokens_per_sec": 575.0003193961438,
+      "ttft_ms": {
+        "p50": 449.97816055547446,
+        "p90": 548.398055951111,
+        "min": 107.85384895280004,
+        "max": 634.3949319561943
+      },
+      "tpot_ms": {
+        "p50": 12.179755876479927,
+        "p90": 13.432993223507177,
+        "min": 11.59238903920221,
+        "max": 13.508767458865893
+      }
+    },
+    {
+      "concurrency": 16,
+      "requests_completed": 64,
+      "requests_failed": 0,
+      "wall_seconds": 17.53392994601745,
+      "output_tokens_total": 16384,
+      "output_tokens_per_sec": 934.4168734814274,
+      "ttft_ms": {
+        "p50": 604.2089955299161,
+        "p90": 859.3135050032288,
+        "min": 115.92383100651205,
+        "max": 1264.7879030555487
+      },
+      "tpot_ms": {
+        "p50": 14.740145911791307,
+        "p90": 16.100121662933745,
+        "min": 12.44941383152835,
+        "max": 16.65805745869875
+      }
+    },
+    {
+      "concurrency": 32,
+      "requests_completed": 128,
+      "requests_failed": 0,
+      "wall_seconds": 24.528442468959838,
+      "output_tokens_total": 32768,
+      "output_tokens_per_sec": 1335.9184971270445,
+      "ttft_ms": {
+        "p50": 627.467947488185,
+        "p90": 1655.553215998225,
+        "min": 125.21868606563658,
+        "max": 2572.8300559567288
+      },
+      "tpot_ms": {
+        "p50": 21.416347411771618,
+        "p90": 22.249331580036703,
+        "min": 14.35056974125259,
+        "max": 23.436114748976394
+      }
+    },
+    {
+      "concurrency": 64,
+      "requests_completed": 256,
+      "requests_failed": 0,
+      "wall_seconds": 41.79681980598252,
+      "output_tokens_total": 65536,
+      "output_tokens_per_sec": 1567.9661826955457,
+      "ttft_ms": {
+        "p50": 670.6623029895127,
+        "p90": 3287.8486840054393,
+        "min": 143.39096297044307,
+        "max": 5356.427212012932
+      },
+      "tpot_ms": {
+        "p50": 35.99764417249746,
+        "p90": 36.2217634432383,
+        "min": 16.34418500779087,
+        "max": 41.564330439010234
+      }
+    },
+    {
+      "concurrency": 128,
+      "requests_completed": 512,
+      "requests_failed": 0,
+      "wall_seconds": 88.27878865494858,
+      "output_tokens_total": 131072,
+      "output_tokens_per_sec": 1484.7507764556597,
+      "ttft_ms": {
+        "p50": 11828.639292507432,
+        "p90": 12353.722636937164,
+        "min": 451.36283698957413,
+        "max": 16857.24899696652
+      },
+      "tpot_ms": {
+        "p50": 41.17944263921612,
+        "p90": 42.85278516118506,
+        "min": 15.72036698013179,
+        "max": 64.13951238443819
+      }
+    },
+    {
+      "concurrency": 256,
+      "requests_completed": 1024,
+      "requests_failed": 0,
+      "wall_seconds": 177.30283445399255,
+      "output_tokens_total": 262144,
+      "output_tokens_per_sec": 1478.509922344318,
+      "ttft_ms": {
+        "p50": 34137.11567898281,
+        "p90": 34504.68543195166,
+        "min": 588.9643050031736,
+        "max": 39255.98338898271
+      },
+      "tpot_ms": {
+        "p50": 41.257411572744374,
+        "p90": 42.441377607539444,
+        "min": 12.90942470579609,
+        "max": 64.21739170190824
+      }
+    }
+  ],
+  "nccl_rows": [],
+  "created_at": "2026-08-21T23:34:34.633140Z"
+}

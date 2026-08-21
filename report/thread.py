@@ -48,9 +48,16 @@ def _split(rows: list[CostRow]) -> tuple[list[CostRow], list[CostRow]]:
 
 def build_thread(results: list[BenchResult]) -> list[Post]:
     """The thread, as a list of posts. Raises rather than inventing content."""
-    rows = median_rows(cost_rows(results))
+    # Only saturated runs may be quoted. A run whose throughput was still
+    # climbing at its last level measured the sweep, not the hardware — on real
+    # data the generator otherwise compared a 5090 against the same 5090 swept
+    # less deeply and announced a 5.0x gap.
+    rows = [row for row in median_rows(cost_rows(results)) if row.saturated]
     if not rows:
-        raise ValueError("no results to write a thread from — refusing to draft one")
+        raise ValueError(
+            "no run found its throughput ceiling — refusing to quote an upper "
+            "bound as a measurement"
+        )
 
     selfhost, api = _split(rows)
     model = results[0].target.model

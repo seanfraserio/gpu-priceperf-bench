@@ -34,7 +34,7 @@ def _selfhost(gpu: str, rate: float, tps: float) -> BenchResult:
         pricing=Pricing(hourly_rate_usd=rate),
         timings=Timings(download_seconds=120.0, boot_seconds=300.0),
         workload=Workload(), run_index=1, partial=False,
-        steps=[_step(1, tps / 4), _step(8, tps)],
+        steps=[_step(1, tps / 4), _step(8, tps), _step(16, tps * 0.95)],
     )
 
 
@@ -45,7 +45,7 @@ def _api(provider: str, out_per_mtok: float) -> BenchResult:
         hardware=Hardware(gpu_name="n/a", gpu_count=0),
         pricing=Pricing(input_per_mtok_usd=out_per_mtok / 4, output_per_mtok_usd=out_per_mtok),
         timings=Timings(), workload=Workload(), run_index=1, partial=False,
-        steps=[_step(8, 200.0)],
+        steps=[_step(4, 150.0), _step(8, 200.0), _step(16, 190.0)],
     )
 
 
@@ -92,3 +92,29 @@ def test_rendered_thread_is_numbered_and_carries_the_method_note():
     out = render_thread(build_thread(results))
     assert out.startswith("1/")
     assert "single run" in out.lower() or "run-to-run" in out.lower()
+
+
+def _short(gpu: str, rate: float, tps: float) -> BenchResult:
+    """A run that stopped while throughput was still climbing."""
+    r = _selfhost(gpu, rate, tps)
+    r.steps = [_step(1, tps / 4), _step(4, tps)]
+    return r
+
+
+def test_an_upper_bound_never_becomes_a_headline_claim():
+    """A run that never found its ceiling is not a measurement of that GPU. On
+    real data the generator compared a 5090 against the same 5090 swept less
+    deeply and announced a 5.0x gap — a number about the sweep, not the
+    hardware."""
+    full = _selfhost("RTX 5090", 0.35, 1568.0)
+    short = _short("RTX 5090", 0.35, 325.0)
+    thread = build_thread([full, short])
+    rendered = "\n".join(p.text for p in thread)
+    assert "≤" not in rendered, "unsaturated rows must not reach the thread"
+    assert "x more" not in rendered, "no gap claim against an upper bound"
+
+
+def test_a_thread_with_no_saturated_run_refuses_to_render():
+    """Every run stopped while still climbing: there is no ceiling to quote."""
+    with pytest.raises(ValueError):
+        build_thread([_short("RTX 5090", 0.35, 325.0)])
