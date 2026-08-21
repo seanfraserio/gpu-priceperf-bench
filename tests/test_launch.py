@@ -118,3 +118,41 @@ def test_build_env_carries_the_sink_credentials_together():
 def test_build_env_omits_the_token_when_there_is_no_sink():
     env = build_env("m", "fp8", 1, 1, 1.0, 45, None, sink_token="s3cret")
     assert "SINK_TOKEN" not in env
+
+
+def test_vastai_binary_resolves_from_the_active_interpreter(monkeypatch, tmp_path):
+    """The CLI usually lives in the venv alongside python, which is not on PATH
+    when the venv is unactivated. The reaper is the money guard — it must never
+    fail to find its own tool."""
+    import shutil, sys
+    from launch import vast
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    (fake_bin / "vastai").write_text("#!/bin/sh\n")
+    (fake_bin / "vastai").chmod(0o755)
+
+    monkeypatch.setattr(sys, "executable", str(fake_bin / "python"))
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    assert vast.vastai_bin() == str(fake_bin / "vastai")
+
+
+def test_vastai_binary_falls_back_to_path(monkeypatch):
+    import shutil, sys
+    from launch import vast
+
+    monkeypatch.setattr(sys, "executable", "/nonexistent/python")
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/local/bin/vastai")
+    assert vast.vastai_bin() == "/usr/local/bin/vastai"
+
+
+def test_missing_vastai_names_the_install_command(monkeypatch):
+    """A cryptic FileNotFoundError while a GPU bills by the second is the wrong
+    failure — say what to install."""
+    import shutil, sys
+    from launch import vast
+
+    monkeypatch.setattr(sys, "executable", "/nonexistent/python")
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    with pytest.raises(RuntimeError, match="pip install vastai"):
+        vast.vastai_bin()

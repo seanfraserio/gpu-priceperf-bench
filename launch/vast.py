@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +19,25 @@ NCCL_IMAGE = "nvidia/cuda:12.6.0-devel-ubuntu22.04"
 _ROOT = Path(__file__).resolve().parent.parent
 ONSTART_PATH = _ROOT / "runner-vllm" / "onstart.sh"
 NCCL_ONSTART_PATH = _ROOT / "runner-nccl" / "onstart.sh"
+
+
+def vastai_bin() -> str:
+    """Absolute path to the vastai CLI.
+
+    It is usually installed into the same venv as this code, whose bin
+    directory is not on PATH unless the venv is activated. The reaper depends
+    on this and runs while a GPU is billing, so it resolves the interpreter's
+    own directory first and says what to install rather than raising a bare
+    FileNotFoundError."""
+    beside_python = Path(sys.executable).parent / "vastai"
+    if beside_python.exists():
+        return str(beside_python)
+    found = shutil.which("vastai")
+    if found:
+        return found
+    raise RuntimeError(
+        "vastai CLI not found — pip install vastai, then `vastai set api-key <key>`"
+    )
 
 
 def onstart_script() -> str:
@@ -86,7 +107,7 @@ def build_env(
 
 def search_offers(gpu_name: str, num_gpus: int) -> list[Offer]:
     raw = subprocess.run(
-        ["vastai", "search", "offers",
+        [vastai_bin(), "search", "offers",
          f"gpu_name={gpu_name} num_gpus={num_gpus}", "--raw"],
         capture_output=True, text=True, check=True,
     ).stdout

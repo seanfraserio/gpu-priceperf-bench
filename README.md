@@ -40,7 +40,9 @@ The multi-GPU interconnect run works the same way on the stock
 `nvidia/cuda` devel image, compiling nccl-tests at a pinned tag on the box —
 roughly 2-3 minutes of billed time, and nothing to host.
 
-    python -m launch.reap        # before and after every session
+    pip install vastai
+    vastai set api-key <key>      # from https://cloud.vast.ai/account/
+    python -m launch.reap         # before and after every session
 
 Instances power off the moment a run ends, so results only survive if they are
 uploaded. `SINK_URL` + `SINK_TOKEN` point at the write-authenticated sink
