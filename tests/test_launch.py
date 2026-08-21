@@ -156,3 +156,44 @@ def test_missing_vastai_names_the_install_command(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda name: None)
     with pytest.raises(RuntimeError, match="pip install vastai"):
         vast.vastai_bin()
+
+
+def test_select_offer_matches_the_name_used_to_search():
+    """Vast's query syntax uses underscores ("RTX_5090") but its responses use
+    spaces ("RTX 5090"). Selecting with the string you searched with must work,
+    or every launch aborts against a full offer list."""
+    offers = [Offer(id=9, gpu_name="RTX 5090", num_gpus=1, hourly_usd=0.35)]
+    assert select_offer(offers, "RTX_5090", 1, max_hourly=0.60).id == 9
+    assert select_offer(offers, "RTX 5090", 1, max_hourly=0.60).id == 9
+
+
+def test_select_offer_still_rejects_a_different_gpu():
+    offers = [Offer(id=9, gpu_name="RTX 4090", num_gpus=1, hourly_usd=0.35)]
+    with pytest.raises(LookupError):
+        select_offer(offers, "RTX_5090", 1, max_hourly=0.60)
+
+
+def test_create_instance_command_passes_env_and_onstart(tmp_path):
+    from launch.vast import create_instance_command
+    env = {"MODEL": "m", "TTL_MINUTES": "20"}
+    cmd = create_instance_command(
+        offer_id=123, image="img:tag", env=env,
+        onstart_path=tmp_path / "onstart.sh", disk_gb=80,
+    )
+    assert "create" in cmd and "instance" in cmd and "123" in cmd
+    assert cmd[cmd.index("--image") + 1] == "img:tag"
+    assert cmd[cmd.index("--disk") + 1] == "80"
+    assert cmd[cmd.index("--onstart") + 1] == str(tmp_path / "onstart.sh")
+    env_arg = cmd[cmd.index("--env") + 1]
+    assert "-e MODEL=m" in env_arg
+    assert "-e TTL_MINUTES=20" in env_arg
+
+
+def test_create_instance_command_never_puts_the_token_in_argv(tmp_path):
+    """argv is world-readable via ps. The sink token must not travel there."""
+    from launch.vast import create_instance_command
+    cmd = create_instance_command(
+        offer_id=1, image="i", env={"SINK_TOKEN": "s3cret", "MODEL": "m"},
+        onstart_path=tmp_path / "o.sh", disk_gb=40,
+    )
+    assert "s3cret" not in " ".join(cmd)

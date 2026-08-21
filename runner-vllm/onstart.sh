@@ -48,6 +48,18 @@ snapshot_download('${MODEL}')
 export DOWNLOAD_SECONDS=$(( $(date +%s) - DL_START ))
 echo "weights downloaded in ${DOWNLOAD_SECONDS}s"
 
+# precision-flag-begin
+# --quantization takes a scheme (fp8, awq, gptq); a plain dtype belongs to
+# --dtype. Passing a dtype as a quantisation scheme makes vLLM refuse to start,
+# which on a rented box means paying for a boot that never serves.
+case "${PRECISION}" in
+  auto|half|float16|bfloat16|float|float32)
+    PRECISION_FLAG="--dtype ${PRECISION}" ;;
+  *)
+    PRECISION_FLAG="--quantization ${PRECISION}" ;;
+esac
+# precision-flag-end
+
 # 4. Serve. No speculative decoding, no prefix caching, fixed KV budget.
 # VLLM_START_EPOCH lets the harness measure boot from the server's real start,
 # not from when Python happened to attach.
@@ -55,7 +67,7 @@ export VLLM_START_EPOCH=$(date +%s)
 vllm serve "${MODEL}" \
   --tensor-parallel-size "${TP_SIZE}" \
   --max-model-len "${MAX_MODEL_LEN}" \
-  --quantization "${PRECISION}" \
+  ${PRECISION_FLAG} \
   --no-enable-prefix-caching \
   --port 8000 &
 

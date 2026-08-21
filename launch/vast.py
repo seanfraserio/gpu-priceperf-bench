@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -50,6 +53,17 @@ def nccl_onstart_script() -> str:
     return NCCL_ONSTART_PATH.read_text()
 
 
+# Values that must never reach argv, which is world-readable through ps. They
+# travel inside the onstart script body instead.
+SECRET_ENV_KEYS = frozenset({"SINK_TOKEN"})
+
+
+def _normalise_gpu_name(name: str) -> str:
+    """Vast queries use underscores ("RTX_5090"), responses use spaces
+    ("RTX 5090"). Compare on one form so searching and selecting agree."""
+    return name.replace("_", " ").strip().casefold()
+
+
 @dataclass
 class Offer:
     id: int
@@ -62,9 +76,12 @@ def select_offer(
     offers: list[Offer], gpu_name: str, num_gpus: int, max_hourly: float
 ) -> Offer:
     """Cheapest offer matching the request, or abort. Never silently upgrade."""
+    wanted = _normalise_gpu_name(gpu_name)
     matches = [
         o for o in offers
-        if o.gpu_name == gpu_name and o.num_gpus == num_gpus and o.hourly_usd <= max_hourly
+        if _normalise_gpu_name(o.gpu_name) == wanted
+        and o.num_gpus == num_gpus
+        and o.hourly_usd <= max_hourly
     ]
     if not matches:
         raise LookupError(
@@ -120,3 +137,71 @@ def search_offers(gpu_name: str, num_gpus: int) -> list[Offer]:
         )
         for item in json.loads(raw)
     ]
+
+
+def create_instance_command(
+    offer_id: int,
+    image: str,
+    env: dict[str, str],
+    onstart_path: Path,
+    disk_gb: int,
+) -> list[str]:
+    """argv for `vastai create instance`.
+
+    Secrets are deliberately absent — see SECRET_ENV_KEYS. Everything else is
+    passed as Vast's '-e KEY=VAL' env string."""
+    public = " ".join(
+        f"-e {k}={v}" for k, v in sorted(env.items()) if k not in SECRET_ENV_KEYS
+    )
+    return [
+        vastai_bin(), "create", "instance", str(offer_id),
+        "--image", image,
+        "--disk", str(disk_gb),
+        "--onstart", str(onstart_path),
+        "--env", public,
+        "--ssh", "--direct",
+        "--raw",
+    ]
+
+
+def render_onstart_with_secrets(script: str, env: dict[str, str]) -> str:
+    """Inline secret exports at the top of the onstart body.
+
+    The script is uploaded as a file, so this keeps the token out of argv while
+    still reaching the instance."""
+    secrets = {k: v for k, v in env.items() if k in SECRET_ENV_KEYS and v}
+    if not secrets:
+        return script
+    exports = "\n".join(f"export {k}={v!r}" for k, v in sorted(secrets.items()))
+    lines = script.splitlines(keepends=True)
+    # Keep the shebang first; a shebang anywhere else is just a comment.
+    if lines and lines[0].startswith("#!"):
+        return lines[0] + exports + "\n" + "".join(lines[1:])
+    return exports + "\n" + script
+
+
+def launch_instance(
+    offer: Offer,
+    env: dict[str, str],
+    script: str,
+    image: str = IMAGE,
+    disk_gb: int = 80,
+) -> dict:
+    """Rent `offer` and start the run. Returns Vast's created-instance payload."""
+    directory = Path(tempfile.mkdtemp(prefix="gppb-onstart-"))
+    onstart = directory / "onstart.sh"
+    onstart.write_text(render_onstart_with_secrets(script, env))
+    # The file holds a live token until the launch completes.
+    onstart.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    try:
+        out = subprocess.run(
+            create_instance_command(offer.id, image, env, onstart, disk_gb),
+            capture_output=True, text=True, check=True,
+        ).stdout
+    finally:
+        onstart.unlink(missing_ok=True)
+        os.rmdir(directory)
+    try:
+        return json.loads(out)
+    except json.JSONDecodeError:
+        return {"raw": out.strip()}
