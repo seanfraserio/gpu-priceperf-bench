@@ -121,6 +121,7 @@ def build_env(
     sink_url: str | None,
     gppb_ref: str = "main",
     sink_token: str | None = None,
+    backstop_minutes: int | None = None,
 ) -> dict[str, str]:
     env = {
         "MODEL": model,
@@ -134,6 +135,11 @@ def build_env(
         # Pinned revision of the harness the instance clones at boot.
         "GPPB_REF": gppb_ref,
     }
+    if backstop_minutes is not None:
+        # The onstart script has its own default, but a backstop the caller
+        # cannot see is a backstop the caller cannot reason about — and the
+        # ordering against the orchestrator's deadline is what makes it safe.
+        env["TTL_BACKSTOP_MINUTES"] = str(backstop_minutes)
     if sink_url:
         # The token is useless without the URL and the URL is useless without
         # the token — an instance that cannot upload burns money for nothing.

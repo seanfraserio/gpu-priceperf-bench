@@ -11,6 +11,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
+from typing import Callable
 
 from launch.matrix import (
     MODELS, TIERS, BudgetExhausted, BudgetGate, Run, build_matrix,
@@ -30,10 +31,54 @@ TOKEN_FILE = Path.home() / ".gppb-sink-token"
 MIN_INET_DOWN_MBPS = 600.0
 MIN_RELIABILITY = 0.97
 
-# Generous relative to the measured 25-minute run, because the timer is a
-# backstop against a hung instance, not a schedule.
+# Three stop-clocks, and the ordering between them is the whole point.
+#
+# The container's timers start when onstart runs, which is *after* Vast has
+# pulled a ~15GB image; the orchestrator's used to start at launch. The first
+# live sweep proved what that costs: a slow pull pushed the container TTL past
+# the orchestrator's deadline, so a run that was still working was killed from
+# outside and recorded as a timeout with nothing uploaded.
+#
+# The fix is to measure the run from "running", so both clocks cover the same
+# interval, and budget the pull separately.
+#
+#   CONTAINER_TTL  <  RUN_TIMEOUT  <  CONTAINER_BACKSTOP
+#
+# The instance stops itself (TTL). The orchestrator is the backstop for an
+# instance that cannot. The container backstop is the backstop for a dead
+# orchestrator, so it must outlive it rather than pre-empt it.
+CONTAINER_TTL_MINUTES = 60
 RUN_TIMEOUT_MINUTES = 75
+CONTAINER_BACKSTOP_MINUTES = 90
+
+# Pull plus scheduling, billed but not part of the run. Measured worst case
+# was 23 minutes on a slow host; the bandwidth floor should prevent a repeat.
+PULL_TIMEOUT_MINUTES = 40
+
 POLL_SECONDS = 60
+
+
+def await_running(
+    instance_id: int,
+    instances: Callable[[], list[dict]] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+    timeout_minutes: float = PULL_TIMEOUT_MINUTES,
+    poll_seconds: float = POLL_SECONDS,
+) -> bool:
+    """Block until the instance is actually running. False if it never is.
+
+    Returning False rather than raising keeps the decision with the caller,
+    which is the only place that knows to destroy the instance first."""
+    poll = instances or _instances
+    deadline = time.time() + timeout_minutes * 60
+    while time.time() < deadline:
+        for item in poll():
+            if item.get("id") == instance_id:
+                if item.get("actual_status") == "running":
+                    return True
+                break
+        sleep(poll_seconds)
+    return False
 
 
 def current_credit() -> float:
@@ -54,7 +99,7 @@ def _instances() -> list[dict]:
     return json.loads(raw)
 
 
-def run_one(run: Run, gppb_ref: str, ttl_minutes: int = 60) -> str:
+def run_one(run: Run, gppb_ref: str, ttl_minutes: int = CONTAINER_TTL_MINUTES) -> str:
     """Rent one instance, wait for it to finish, and report how it ended.
 
     The instance destroys itself when the sweep completes, so its disappearance
@@ -73,22 +118,34 @@ def run_one(run: Run, gppb_ref: str, ttl_minutes: int = 60) -> str:
         run_index=run.run_index, hourly_usd=round(offer.hourly_usd, 4),
         ttl_minutes=ttl_minutes, sink_url=SINK_URL, gppb_ref=gppb_ref,
         sink_token=TOKEN_FILE.read_text().strip(),
+        backstop_minutes=CONTAINER_BACKSTOP_MINUTES,
     )
     created = launch_instance(offer, env, onstart_script(), disk_gb=120)
     instance_id = created.get("new_contract")
     print(f"    instance {instance_id} @ ${offer.hourly_usd:.4f}/hr")
+
+    def destroy() -> None:
+        subprocess.run(
+            [vastai_bin(), "destroy", "instance", str(instance_id), "-y"],
+            capture_output=True, check=False,
+        )
+
+    # The pull is billed but is not the run. Time it separately so a slow host
+    # is reported as a slow host, not as a benchmark that hung.
+    pull_started = time.time()
+    if not await_running(instance_id):
+        destroy()
+        return "never-started"
+    print(f"    running after {(time.time() - pull_started) / 60:.1f} min pull")
 
     deadline = time.time() + RUN_TIMEOUT_MINUTES * 60
     while time.time() < deadline:
         time.sleep(POLL_SECONDS)
         if not any(i.get("id") == instance_id for i in _instances()):
             return "completed"
-    # Past the timeout the instance is hung; the in-container TTL should have
-    # fired, so kill it here rather than trusting it twice.
-    subprocess.run(
-        [vastai_bin(), "destroy", "instance", str(instance_id), "-y"],
-        capture_output=True, check=False,
-    )
+    # Past the timeout the instance is hung and its own TTL has already failed
+    # to stop it, so kill it here rather than trusting that timer twice.
+    destroy()
     return "timeout"
 
 
