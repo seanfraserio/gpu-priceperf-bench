@@ -6,13 +6,27 @@
 # at boot into a container that already spends minutes downloading weights.
 set -euo pipefail
 
+# 0. Arm the self-destruct FIRST, before any command that can fail or hang.
+# This script runs under `set -e`; anything above the TTL that exits non-zero
+# leaves an instance billing with nothing to stop it. TTL_MINUTES is read
+# before /etc/environment because that file may not be sourced yet — the
+# default is deliberately conservative.
+TTL_MINUTES="${TTL_MINUTES:-45}"
+( sleep $((TTL_MINUTES * 60)); echo "TTL reached, powering off"; poweroff -f ) &
+
 # Vast writes instance env into /etc/environment; a non-login onstart shell
-# does not pick it up on its own.
+# does not pick it up on its own. A malformed line in that file must not kill
+# the run, so failures here are swallowed deliberately.
 if [ -f /etc/environment ]; then
+  set +e
   set -a
-  . /etc/environment
+  . /etc/environment 2>/dev/null || true
   set +a
+  set -e
 fi
+# Re-read TTL in case the instance environment overrides the default.
+TTL_MINUTES="${TTL_MINUTES:-45}"
+
 
 : "${MODEL:?MODEL is required}"
 : "${HOURLY_RATE_USD:?HOURLY_RATE_USD is required}"
@@ -25,7 +39,6 @@ GPPB_REF="${GPPB_REF:-main}"
 
 # 1. Arm the TTL before anything else can hang — clone, pip, weight download
 # and vLLM boot all sit behind this. Primary budget guard.
-( sleep $((TTL_MINUTES * 60)); echo "TTL reached, powering off"; poweroff -f ) &
 
 shutdown_now() { echo "run finished, powering off"; poweroff -f; }
 trap shutdown_now EXIT

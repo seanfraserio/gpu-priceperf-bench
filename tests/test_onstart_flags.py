@@ -38,3 +38,27 @@ def test_a_quantisation_scheme_stays_quantization():
 
 def test_awq_stays_quantization():
     assert _precision_flag("awq") == "--quantization awq"
+
+
+SOURCE_CMD = ". /etc/environment"
+
+
+def test_ttl_arms_before_the_environment_is_sourced():
+    """The script runs under `set -e`. Sourcing /etc/environment can fail on a
+    malformed line, and if the TTL is not already armed the script dies with no
+    self-destruct — the instance then bills until someone notices."""
+    body = open(SCRIPT).read()
+    assert body.index("poweroff -f") < body.index(SOURCE_CMD)
+
+
+def test_sourcing_the_environment_cannot_kill_the_script():
+    """A bad line in /etc/environment must not abort the run."""
+    body = open(SCRIPT).read()
+    start = body.index(SOURCE_CMD)
+    window = body[start - 200:start + 200]
+    assert "|| true" in window or "set +e" in window, window
+
+
+def test_nccl_runner_arms_ttl_before_sourcing_too():
+    body = open("runner-nccl/onstart.sh").read()
+    assert body.index("poweroff -f") < body.index(SOURCE_CMD)

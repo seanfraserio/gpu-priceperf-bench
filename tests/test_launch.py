@@ -197,3 +197,35 @@ def test_create_instance_command_never_puts_the_token_in_argv(tmp_path):
         onstart_path=tmp_path / "o.sh", disk_gb=40,
     )
     assert "s3cret" not in " ".join(cmd)
+
+
+def test_reaper_skips_the_confirmation_prompt(monkeypatch):
+    """vastai destroy prompts interactively. Without -y the reaper aborts,
+    the GPU keeps billing, and the caller is told it was destroyed."""
+    from launch import reap
+    calls = []
+
+    class _Done:
+        returncode = 0
+        stdout = "[]"
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return _Done()
+
+    monkeypatch.setattr(reap.subprocess, "run", fake_run)
+    reap.destroy_instance(42)
+    assert any(flag in calls[0] for flag in ("-y", "--yes")), calls[0]
+
+
+def test_reaper_reports_a_failed_destroy_instead_of_claiming_success(monkeypatch):
+    """A guard that lies about destroying an instance is worse than no guard."""
+    from launch import reap
+
+    class _Failed:
+        returncode = 1
+        stdout = ""
+        stderr = "boom"
+
+    monkeypatch.setattr(reap.subprocess, "run", lambda cmd, **kw: _Failed())
+    assert reap.destroy_instance(42) is False
