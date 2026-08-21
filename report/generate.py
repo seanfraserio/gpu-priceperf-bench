@@ -157,4 +157,12 @@ if __name__ == "__main__":
     render_cost_chart(rows, Path("report/out/cost.svg"))
     render_throughput_chart(throughput_curves(results), Path("report/out/throughput.svg"))
     Path("report/out/table.md").write_text(render_markdown_table(rows))
+
+    # The thread is a build artefact like the charts, not a document someone
+    # edits afterwards — regenerating it is the only way its numbers stay
+    # consistent with the results directory.
+    from report.thread import build_thread, render_thread
+    Path("report/out/thread.txt").write_text(render_thread(build_thread(results)))
+
     print(render_markdown_table(rows))
+    print("\nwrote report/out/{cost.svg,throughput.svg,table.md,thread.txt}")
