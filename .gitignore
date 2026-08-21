@@ -5,5 +5,3 @@ report/out/
 .env
 sink-worker/node_modules/
 
-# Dry-run artifacts — real runs are committed deliberately
-results/vllm-unknown-*.json

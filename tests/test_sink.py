@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import httpx
 import pytest
 from gppb.sink import LocalSink, R2Sink, make_sink
@@ -96,3 +97,17 @@ def test_make_sink_reads_the_token_from_the_environment(monkeypatch, tmp_path):
     sink = make_sink("https://sink.example.com/runs", tmp_path)
     assert isinstance(sink, R2Sink)
     assert sink.token == "from-env"
+
+
+def test_local_sink_directory_is_overridable_by_environment(monkeypatch, tmp_path):
+    """The dry-run gate must not write mock results into the directory the
+    published report reads, or fabricated rows appear beside real ones."""
+    monkeypatch.setenv("RESULTS_DIR", str(tmp_path / "dryrun"))
+    sink = make_sink(None)
+    assert isinstance(sink, LocalSink)
+    assert sink.directory == tmp_path / "dryrun"
+
+
+def test_local_sink_defaults_to_results(monkeypatch):
+    monkeypatch.delenv("RESULTS_DIR", raising=False)
+    assert make_sink(None).directory == Path("results")

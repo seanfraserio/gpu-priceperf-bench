@@ -27,4 +27,8 @@ the last, so a preempted run keeps whatever it managed to publish.
 
 ## Pull results down
 
-    npx wrangler r2 object get gppb-results/<run_id>.json --file results/<run_id>.json
+Reads are authenticated too. List what a run uploaded, then fetch it:
+
+    curl -H "Authorization: Bearer $SINK_TOKEN" https://gppb-sink.<sub>.workers.dev/_list
+    curl -H "Authorization: Bearer $SINK_TOKEN" \
+      https://gppb-sink.<sub>.workers.dev/<run_id>.json -o results/<run_id>.json

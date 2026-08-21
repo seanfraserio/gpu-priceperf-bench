@@ -54,9 +54,14 @@ class R2Sink:
         return url
 
 
-def make_sink(sink_url: str | None, local_dir: Path = Path("results")):
+def make_sink(sink_url: str | None, local_dir: Path | None = None):
     """SINK_TOKEN never appears on a command line — the runner reads it from
-    the instance environment."""
+    the instance environment.
+
+    RESULTS_DIR redirects the local sink so the dry-run gate never writes mock
+    results into the directory the published report reads."""
     if sink_url:
         return R2Sink(sink_url, token=os.environ.get("SINK_TOKEN"))
+    if local_dir is None:
+        local_dir = Path(os.environ.get("RESULTS_DIR", "results"))
     return LocalSink(local_dir)

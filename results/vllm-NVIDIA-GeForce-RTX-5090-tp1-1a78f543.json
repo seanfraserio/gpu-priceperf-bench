@@ -1,0 +1,102 @@
+{
+  "schema_version": "1",
+  "run_id": "vllm-NVIDIA-GeForce-RTX-5090-tp1-1a78f543",
+  "valid": true,
+  "invalid_reason": null,
+  "partial": false,
+  "target": {
+    "kind": "vllm",
+    "model": "Qwen/Qwen3-8B",
+    "precision": "bfloat16",
+    "tp_size": 1,
+    "provider": null
+  },
+  "hardware": {
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_count": 1,
+    "driver_version": null,
+    "vllm_version": "0.27.1",
+    "peak_vram_bytes": 30324817920
+  },
+  "pricing": {
+    "hourly_rate_usd": 0.3609,
+    "input_per_mtok_usd": null,
+    "output_per_mtok_usd": null
+  },
+  "timings": {
+    "download_seconds": 123.0,
+    "boot_seconds": 330.9163875579834
+  },
+  "workload": {
+    "input_tokens": 1024,
+    "output_tokens": 256,
+    "temperature": 0.0,
+    "ignore_eos": true,
+    "max_model_len": 32768
+  },
+  "run_index": 1,
+  "steps": [
+    {
+      "concurrency": 1,
+      "requests_completed": 4,
+      "requests_failed": 0,
+      "wall_seconds": 10.846269191009924,
+      "output_tokens_total": 1024,
+      "output_tokens_per_sec": 94.41034349845901,
+      "ttft_ms": {
+        "p50": 99.23482348676771,
+        "p90": 142.42168795317411,
+        "min": 96.54609905555844,
+        "max": 142.42168795317411
+      },
+      "tpot_ms": {
+        "p50": 10.20157238395483,
+        "p90": 10.203178419603729,
+        "min": 10.195707051339102,
+        "max": 10.203178419603729
+      }
+    },
+    {
+      "concurrency": 2,
+      "requests_completed": 8,
+      "requests_failed": 0,
+      "wall_seconds": 11.426588832167909,
+      "output_tokens_total": 2048,
+      "output_tokens_per_sec": 179.23109250544752,
+      "ttft_ms": {
+        "p50": 131.9375978782773,
+        "p90": 178.8754379376769,
+        "min": 93.3893141336739,
+        "max": 178.8754379376769
+      },
+      "tpot_ms": {
+        "p50": 10.669232282203202,
+        "p90": 10.799138678018661,
+        "min": 10.529407584930167,
+        "max": 10.799138678018661
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests_completed": 16,
+      "requests_failed": 0,
+      "wall_seconds": 12.600226483074948,
+      "output_tokens_total": 4096,
+      "output_tokens_per_sec": 325.0735219324737,
+      "ttft_ms": {
+        "p50": 275.75624955352396,
+        "p90": 325.0756352208555,
+        "min": 102.9983670450747,
+        "max": 325.5381709896028
+      },
+      "tpot_ms": {
+        "p50": 11.264410984757191,
+        "p90": 11.922170890166479,
+        "min": 11.12616085447371,
+        "max": 11.924016808031821
+      }
+    }
+  ],
+  "nccl_rows": [],
+  "created_at": "2026-08-21T18:55:21.009671Z"
+}

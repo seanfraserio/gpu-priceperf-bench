@@ -38,10 +38,10 @@ export default {
     const url = new URL(request.url);
     const key = url.pathname.replace(/^\/+/, "");
 
-    if (request.method !== "PUT") {
+    if (request.method !== "PUT" && request.method !== "GET") {
       return new Response("method not allowed\n", {
         status: 405,
-        headers: { Allow: "PUT" },
+        headers: { Allow: "GET, PUT" },
       });
     }
 
@@ -55,6 +55,27 @@ export default {
     const presented = header.startsWith("Bearer ") ? header.slice(7) : "";
     if (!presented || !tokenMatches(presented, env.SINK_TOKEN)) {
       return unauthorized();
+    }
+
+    // Reading is authenticated too: results are the published record, and the
+    // operator needs to enumerate what a run uploaded before committing it.
+    if (request.method === "GET") {
+      if (key === "" || key === "_list") {
+        const listed = await env.RESULTS.list({ limit: 1000 });
+        return Response.json({
+          objects: listed.objects.map((o) => ({
+            key: o.key,
+            size: o.size,
+            uploaded: o.uploaded,
+          })),
+          truncated: listed.truncated,
+        });
+      }
+      const object = await env.RESULTS.get(key);
+      if (!object) return new Response("not found\n", { status: 404 });
+      return new Response(object.body, {
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     if (!KEY_PATTERN.test(key)) {
