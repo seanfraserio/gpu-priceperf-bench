@@ -77,3 +77,61 @@ def test_markdown_table_renders_every_row():
     assert "NVIDIA H100 80GB HBM3 TP1" in table
     assert "chutes" in table
     assert "$/1M" in table
+
+
+def _multi_step(pairs) -> list:
+    s = Stats(p50=1.0, p90=1.0, min=1.0, max=1.0)
+    return [
+        StepResult(concurrency=c, requests_completed=4 * c, requests_failed=0,
+                   wall_seconds=10.0, output_tokens_total=1024 * c,
+                   output_tokens_per_sec=tps, ttft_ms=s, tpot_ms=s)
+        for c, tps in pairs
+    ]
+
+
+def _curve_result(run_id, gpu, pairs, run_index=1) -> BenchResult:
+    r = _vllm(run_id, 1.0, run_index=run_index)
+    r.hardware.gpu_name = gpu
+    r.steps = _multi_step(pairs)
+    return r
+
+
+def test_throughput_curves_group_by_tier():
+    from report.generate import throughput_curves
+    curves = throughput_curves([
+        _curve_result("a", "H100", [(1, 40.0), (8, 300.0), (64, 900.0)]),
+        _curve_result("b", "RTX 5090", [(1, 30.0), (8, 200.0), (64, 500.0)]),
+    ])
+    assert set(curves) == {"H100 TP1", "RTX 5090 TP1"}
+    assert curves["H100 TP1"] == [(1, 40.0), (8, 300.0), (64, 900.0)]
+
+
+def test_throughput_curves_take_the_median_across_repeat_runs():
+    """Three runs per config; the curve must show the median, not whichever
+    run happened to be read last."""
+    from report.generate import throughput_curves
+    curves = throughput_curves([
+        _curve_result("a", "H100", [(1, 10.0)], run_index=1),
+        _curve_result("b", "H100", [(1, 20.0)], run_index=2),
+        _curve_result("c", "H100", [(1, 90.0)], run_index=3),
+    ])
+    assert curves["H100 TP1"] == [(1, 20.0)]
+
+
+def test_throughput_curves_exclude_failed_steps():
+    """A level where every request failed reports zero tokens/sec; plotting it
+    draws a cliff that never happened."""
+    from report.generate import throughput_curves
+    r = _curve_result("a", "H100", [(1, 40.0), (8, 0.0)])
+    r.steps[1].requests_completed = 0
+    r.steps[1].requests_failed = 32
+    curves = throughput_curves([r])
+    assert curves["H100 TP1"] == [(1, 40.0)]
+
+
+def test_throughput_chart_writes_a_file(tmp_path):
+    from report.generate import render_throughput_chart, throughput_curves
+    out = tmp_path / "tp.svg"
+    render_throughput_chart(
+        throughput_curves([_curve_result("a", "H100", [(1, 40.0), (8, 300.0)])]), out)
+    assert out.exists() and out.stat().st_size > 0

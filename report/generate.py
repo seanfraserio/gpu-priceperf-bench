@@ -80,6 +80,50 @@ def median_rows(rows: list[CostRow]) -> list[CostRow]:
     return sorted(collapsed, key=lambda r: r.usd_per_mtok)
 
 
+def throughput_curves(
+    results: list[BenchResult],
+) -> dict[str, list[tuple[int, float]]]:
+    """Tokens/sec against concurrency, one curve per tier, median across runs.
+
+    Levels where every request failed are dropped rather than plotted as zero:
+    a failed level is missing data, and drawing it as a cliff invents a
+    performance characteristic the hardware does not have."""
+    by_label: dict[str, dict[int, list[float]]] = defaultdict(lambda: defaultdict(list))
+    for result in results:
+        label = f"{result.hardware.gpu_name} TP{result.target.tp_size}"
+        for step in result.steps:
+            if step.requests_completed == 0:
+                continue
+            by_label[label][step.concurrency].append(step.output_tokens_per_sec)
+
+    curves: dict[str, list[tuple[int, float]]] = {}
+    for label, levels in by_label.items():
+        curves[label] = [
+            (concurrency, statistics.median(samples))
+            for concurrency, samples in sorted(levels.items())
+        ]
+    return curves
+
+
+def render_throughput_chart(
+    curves: dict[str, list[tuple[int, float]]], out_path: Path
+) -> None:
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for label, points in sorted(curves.items()):
+        xs = [c for c, _ in points]
+        ys = [t for _, t in points]
+        ax.plot(xs, ys, marker="o", label=label)
+    ax.set_xscale("log", base=2)
+    ax.set_xlabel("concurrent requests")
+    ax.set_ylabel("output tokens/sec")
+    ax.set_title("Throughput vs concurrency — the knee is where cost is quoted")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(out_path, format="svg")
+    plt.close(fig)
+
+
 def render_markdown_table(rows: list[CostRow]) -> str:
     lines = [
         "| Target | $/1M output tokens | tokens/sec | cold start $ |",
@@ -107,8 +151,10 @@ def render_cost_chart(rows: list[CostRow], out_path: Path) -> None:
 
 
 if __name__ == "__main__":
-    rows = median_rows(cost_rows(load_results(Path("results"))))
+    results = load_results(Path("results"))
+    rows = median_rows(cost_rows(results))
     Path("report/out").mkdir(parents=True, exist_ok=True)
     render_cost_chart(rows, Path("report/out/cost.svg"))
+    render_throughput_chart(throughput_curves(results), Path("report/out/throughput.svg"))
     Path("report/out/table.md").write_text(render_markdown_table(rows))
     print(render_markdown_table(rows))
