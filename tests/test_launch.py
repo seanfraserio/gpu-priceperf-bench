@@ -229,3 +229,40 @@ def test_reaper_reports_a_failed_destroy_instead_of_claiming_success(monkeypatch
 
     monkeypatch.setattr(reap.subprocess, "run", lambda cmd, **kw: _Failed())
     assert reap.destroy_instance(42) is False
+
+
+def _bw_offers():
+    return [
+        Offer(id=1, gpu_name="RTX 5090", num_gpus=1, hourly_usd=0.33,
+              inet_down_mbps=90.0, reliability=0.99),
+        Offer(id=2, gpu_name="RTX 5090", num_gpus=1, hourly_usd=0.36,
+              inet_down_mbps=950.0, reliability=0.99),
+        Offer(id=3, gpu_name="RTX 5090", num_gpus=1, hourly_usd=0.34,
+              inet_down_mbps=800.0, reliability=0.55),
+    ]
+
+
+def test_select_offer_rejects_hosts_too_slow_to_pull_the_image():
+    """Image pull is billed time. The cheapest hourly rate on a 90Mbps link
+    loses to a dearer host that starts working 15 minutes sooner."""
+    chosen = select_offer(_bw_offers(), "RTX_5090", 1, max_hourly=0.60,
+                          min_inet_down_mbps=300.0)
+    assert chosen.id != 1, "the 90Mbps host must be excluded"
+    assert chosen.inet_down_mbps >= 300.0
+
+
+def test_select_offer_rejects_unreliable_hosts():
+    """A host that drops mid-run wastes everything spent up to that point."""
+    chosen = select_offer(_bw_offers(), "RTX_5090", 1, max_hourly=0.60,
+                          min_inet_down_mbps=300.0, min_reliability=0.90)
+    assert chosen.id == 2
+
+
+def test_bandwidth_floor_is_opt_in_so_existing_calls_are_unchanged():
+    assert select_offer(_bw_offers(), "RTX_5090", 1, max_hourly=0.60).id == 1
+
+
+def test_select_offer_says_why_nothing_qualified():
+    with pytest.raises(LookupError, match="Mbps"):
+        select_offer(_bw_offers(), "RTX_5090", 1, max_hourly=0.60,
+                     min_inet_down_mbps=5000.0)

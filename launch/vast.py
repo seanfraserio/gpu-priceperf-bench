@@ -70,23 +70,44 @@ class Offer:
     gpu_name: str
     num_gpus: int
     hourly_usd: float
+    # Pull bandwidth is billed time: the vLLM image is ~15GB, which is ~2
+    # minutes at 950Mbps and ~20 at 90Mbps, on the same meter.
+    inet_down_mbps: float | None = None
+    reliability: float | None = None
 
 
 def select_offer(
-    offers: list[Offer], gpu_name: str, num_gpus: int, max_hourly: float
+    offers: list[Offer],
+    gpu_name: str,
+    num_gpus: int,
+    max_hourly: float,
+    min_inet_down_mbps: float | None = None,
+    min_reliability: float | None = None,
 ) -> Offer:
-    """Cheapest offer matching the request, or abort. Never silently upgrade."""
+    """Cheapest qualifying offer, or abort. Never silently upgrade.
+
+    The bandwidth and reliability floors are opt-in. They matter because the
+    meter starts before the image finishes pulling, so the lowest hourly rate
+    on a slow link can cost more overall than a dearer host that begins work
+    fifteen minutes sooner."""
     wanted = _normalise_gpu_name(gpu_name)
     matches = [
         o for o in offers
         if _normalise_gpu_name(o.gpu_name) == wanted
         and o.num_gpus == num_gpus
         and o.hourly_usd <= max_hourly
+        and (min_inet_down_mbps is None
+             or (o.inet_down_mbps or 0.0) >= min_inet_down_mbps)
+        and (min_reliability is None
+             or (o.reliability or 0.0) >= min_reliability)
     ]
     if not matches:
-        raise LookupError(
-            f"no {num_gpus}x {gpu_name} at or under ${max_hourly}/hr — not renting"
-        )
+        detail = f"at or under ${max_hourly}/hr"
+        if min_inet_down_mbps is not None:
+            detail += f", >={min_inet_down_mbps}Mbps down"
+        if min_reliability is not None:
+            detail += f", >={min_reliability} reliability"
+        raise LookupError(f"no {num_gpus}x {gpu_name} {detail} — not renting")
     return min(matches, key=lambda o: o.hourly_usd)
 
 
@@ -134,6 +155,12 @@ def search_offers(gpu_name: str, num_gpus: int) -> list[Offer]:
             gpu_name=item["gpu_name"],
             num_gpus=item["num_gpus"],
             hourly_usd=float(item["dph_total"]),
+            inet_down_mbps=(
+                float(item["inet_down"]) if item.get("inet_down") is not None else None
+            ),
+            reliability=(
+                float(item["reliability2"]) if item.get("reliability2") is not None else None
+            ),
         )
         for item in json.loads(raw)
     ]
