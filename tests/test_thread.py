@@ -157,3 +157,16 @@ def test_the_table_does_not_claim_one_model_for_rows_of_two():
     header = table.splitlines()[0]
     assert "Qwen3.8-27B" not in header, header
     assert "Qwen3-8B" in table and "Qwen3.8-27B" in table
+
+
+def test_the_headline_ratio_compares_one_model_against_itself():
+    """The head post announced the 27B, quoted the cheapest 8B row beneath it,
+    and called the gap 8.0x. That number is the difference between two model
+    sizes presented as a difference between two rentals — the single most
+    misleading sentence the generator could emit."""
+    from report.thread import build_thread
+
+    head = build_thread(_two_model_results())[0].text
+    named = [m for m in ("Qwen3-8B", "Qwen3.8-27B") if m in head]
+    # The 27B substring contains no copy of "Qwen3-8B", so the two are distinct.
+    assert len(set(named)) == 1, head

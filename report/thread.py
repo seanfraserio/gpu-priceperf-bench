@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 
 from gppb.models import BenchResult
-from report.generate import CostRow, cost_rows, median_rows
+from report.generate import CostRow, cost_rows, median_rows, short_model
 
 # Room for the numbering prefix the renderer adds.
 MAX_POST_CHARS = 280
@@ -75,15 +75,22 @@ def build_thread(results: list[BenchResult]) -> list[Post]:
     posts: list[Post] = []
 
     head = Post()
-    best = rows[0]
+    # Cheapest and dearest are only comparable within one model. Ranked across
+    # the whole matrix the pair was an 8B against a 27B, and the ratio between
+    # them — announced as "8.0x more" — measured the difference between two
+    # model sizes while reading as a difference between two rentals.
+    headline_rows = [
+        row for row in rows if short_model(model) in row.label
+    ] or rows
+    best = headline_rows[0]
     head.text = (
         f"I rented GPUs and measured what it actually costs to serve "
         f"{head.borrow(model)}.\n\n"
         f"Cheapest: {head.borrow(compact(best.label))} at "
         f"${head.num(best.usd_per_mtok, 4)} per 1M output tokens"
     )
-    if len(rows) > 1:
-        dearest = rows[-1]
+    if len(headline_rows) > 1:
+        dearest = headline_rows[-1]
         ratio = dearest.usd_per_mtok / best.usd_per_mtok if best.usd_per_mtok else 0.0
         head.text += (
             f".\nDearest: {head.borrow(compact(dearest.label))}, "
