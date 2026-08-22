@@ -1,0 +1,222 @@
+{
+  "schema_version": "1",
+  "run_id": "vllm-NVIDIA-GeForce-RTX-5090-tp1-1c72de3b",
+  "valid": true,
+  "invalid_reason": null,
+  "partial": false,
+  "target": {
+    "kind": "vllm",
+    "model": "Qwen/Qwen3-8B",
+    "precision": "bfloat16",
+    "tp_size": 1,
+    "provider": null
+  },
+  "hardware": {
+    "gpu_name": "NVIDIA GeForce RTX 5090",
+    "gpu_count": 1,
+    "driver_version": null,
+    "vllm_version": "0.27.1",
+    "peak_vram_bytes": 30324817920
+  },
+  "pricing": {
+    "hourly_rate_usd": 0.3609,
+    "input_per_mtok_usd": null,
+    "output_per_mtok_usd": null
+  },
+  "timings": {
+    "download_seconds": 287.0,
+    "boot_seconds": 322.50734281539917
+  },
+  "workload": {
+    "input_tokens": 1024,
+    "output_tokens": 256,
+    "temperature": 0.0,
+    "ignore_eos": true,
+    "max_model_len": 32768
+  },
+  "run_index": 2,
+  "steps": [
+    {
+      "concurrency": 1,
+      "requests_completed": 4,
+      "requests_failed": 0,
+      "wall_seconds": 10.842245019972324,
+      "output_tokens_total": 1024,
+      "output_tokens_per_sec": 94.44538452264325,
+      "ttft_ms": {
+        "p50": 94.05771899037063,
+        "p90": 161.3813021685928,
+        "min": 90.84106399677694,
+        "max": 161.3813021685928
+      },
+      "tpot_ms": {
+        "p50": 10.212224073597268,
+        "p90": 10.250855937570803,
+        "min": 10.185023980653462,
+        "max": 10.250855937570803
+      }
+    },
+    {
+      "concurrency": 2,
+      "requests_completed": 8,
+      "requests_failed": 0,
+      "wall_seconds": 11.360209463862702,
+      "output_tokens_total": 2048,
+      "output_tokens_per_sec": 180.27836603847604,
+      "ttft_ms": {
+        "p50": 126.79903802927583,
+        "p90": 163.9313439372927,
+        "min": 89.30876711383462,
+        "max": 163.9313439372927
+      },
+      "tpot_ms": {
+        "p50": 10.69665119064651,
+        "p90": 10.896182289191833,
+        "min": 10.507861584169316,
+        "max": 10.896182289191833
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests_completed": 16,
+      "requests_failed": 0,
+      "wall_seconds": 12.525859815999866,
+      "output_tokens_total": 4096,
+      "output_tokens_per_sec": 327.0034999727514,
+      "ttft_ms": {
+        "p50": 273.85077613871545,
+        "p90": 323.8775960635394,
+        "min": 103.05251087993383,
+        "max": 324.6684540063143
+      },
+      "tpot_ms": {
+        "p50": 11.195190770862002,
+        "p90": 11.85354640725635,
+        "min": 11.053218486189257,
+        "max": 11.855158215279088
+      }
+    },
+    {
+      "concurrency": 8,
+      "requests_completed": 32,
+      "requests_failed": 0,
+      "wall_seconds": 14.201573874801397,
+      "output_tokens_total": 8192,
+      "output_tokens_per_sec": 576.8374739461447,
+      "ttft_ms": {
+        "p50": 414.63655105326325,
+        "p90": 547.859851969406,
+        "min": 99.99883500859141,
+        "max": 631.8984520621598
+      },
+      "tpot_ms": {
+        "p50": 12.269059556773772,
+        "p90": 13.166990219706706,
+        "min": 11.576025059227558,
+        "max": 13.501396270322742
+      }
+    },
+    {
+      "concurrency": 16,
+      "requests_completed": 64,
+      "requests_failed": 0,
+      "wall_seconds": 17.469556038966402,
+      "output_tokens_total": 16384,
+      "output_tokens_per_sec": 937.8601244047053,
+      "ttft_ms": {
+        "p50": 526.9957554992288,
+        "p90": 858.6098940577358,
+        "min": 105.65818380564451,
+        "max": 1261.6707209963351
+      },
+      "tpot_ms": {
+        "p50": 14.97429687821982,
+        "p90": 16.051847282249263,
+        "min": 12.425965219553486,
+        "max": 16.61436332608847
+      }
+    },
+    {
+      "concurrency": 32,
+      "requests_completed": 128,
+      "requests_failed": 0,
+      "wall_seconds": 24.381226465804502,
+      "output_tokens_total": 32768,
+      "output_tokens_per_sec": 1343.9848912423759,
+      "ttft_ms": {
+        "p50": 565.1643329765648,
+        "p90": 1635.417067911476,
+        "min": 112.72543389350176,
+        "max": 2546.883497852832
+      },
+      "tpot_ms": {
+        "p50": 21.610239994091295,
+        "p90": 22.14066575683069,
+        "min": 14.283358879095198,
+        "max": 23.286139133258484
+      }
+    },
+    {
+      "concurrency": 64,
+      "requests_completed": 256,
+      "requests_failed": 0,
+      "wall_seconds": 41.39545967010781,
+      "output_tokens_total": 65536,
+      "output_tokens_per_sec": 1583.1687948938124,
+      "ttft_ms": {
+        "p50": 666.157296509482,
+        "p90": 3271.5067849494517,
+        "min": 129.3860070873052,
+        "max": 5316.984824137762
+      },
+      "tpot_ms": {
+        "p50": 35.86099987082622,
+        "p90": 36.010698924827224,
+        "min": 16.622419490058924,
+        "max": 41.061415697685355
+      }
+    },
+    {
+      "concurrency": 128,
+      "requests_completed": 512,
+      "requests_failed": 0,
+      "wall_seconds": 87.48350850399584,
+      "output_tokens_total": 131072,
+      "output_tokens_per_sec": 1498.2480954569082,
+      "ttft_ms": {
+        "p50": 11778.935101581737,
+        "p90": 12397.409063996747,
+        "min": 567.8218698594719,
+        "max": 16889.78811306879
+      },
+      "tpot_ms": {
+        "p50": 41.01355151985498,
+        "p90": 41.7900670429363,
+        "min": 15.511340690849751,
+        "max": 63.52143667857437
+      }
+    },
+    {
+      "concurrency": 256,
+      "requests_completed": 1024,
+      "requests_failed": 0,
+      "wall_seconds": 175.7527865259908,
+      "output_tokens_total": 262144,
+      "output_tokens_per_sec": 1491.5496088662776,
+      "ttft_ms": {
+        "p50": 33892.90496346075,
+        "p90": 34135.154597926885,
+        "min": 804.67598605901,
+        "max": 39365.796813042834
+      },
+      "tpot_ms": {
+        "p50": 40.95010523748237,
+        "p90": 41.62432316909818,
+        "min": 12.611602250413567,
+        "max": 63.39639065531539
+      }
+    }
+  ],
+  "nccl_rows": [],
+  "created_at": "2026-08-22T02:34:05.770183Z"
+}
