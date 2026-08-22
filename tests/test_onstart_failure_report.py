@@ -86,11 +86,28 @@ def test_the_trap_is_armed_before_anything_that_can_fail():
     assert body.index("trap on_exit EXIT") < body.index("git clone")
 
 
-def test_the_log_is_captured_from_the_top_of_the_script():
-    """A tail that starts after the failing command reports nothing useful."""
+def test_the_script_does_not_redirect_its_own_stdout():
+    """`exec > >(tee -a log)` made stdout a pipe. If tee ever goes away, the
+    next write kills bash with SIGPIPE — and an untrapped SIGPIPE runs no EXIT
+    trap, so the instance neither reports the failure nor destroys itself. One
+    L40S billed for fifty minutes past the end of its own sweep."""
     body = open(SCRIPT).read()
-    assert "tee -a" in body
-    assert body.index("tee -a") < body.index("git clone")
+    assert "exec >" not in body, "vast already records onstart output"
+    assert "tee -a" not in body
+
+
+def test_the_log_read_back_is_the_one_vast_already_writes():
+    body = open(SCRIPT).read()
+    assert "/var/log/onstart.log" in body
+
+
+def test_a_signalled_death_still_stops_the_meter():
+    """SIGTERM from the host, or a SIGPIPE, must not leave an instance whose
+    only remaining stop-clock is a background sleeper."""
+    body = open(SCRIPT).read()
+    trap_line = [l for l in body.splitlines() if l.startswith("trap on_exit")][0]
+    for signal in ("TERM", "HUP", "PIPE"):
+        assert signal in trap_line, trap_line
 
 
 def test_self_destruct_cannot_hang_on_a_stalled_api_call():

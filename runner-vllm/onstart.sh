@@ -7,10 +7,11 @@
 set -euo pipefail
 
 # Everything this script prints is the only account of what happened on a
-# machine that is about to be destroyed. Keep a copy on disk so a failure can
-# publish it — /tmp because it is writable before anything else is checked.
-GPPB_LOG_PATH="${GPPB_LOG_PATH:-/tmp/gppb-onstart.log}"
-exec > >(tee -a "${GPPB_LOG_PATH}") 2>&1
+# machine that is about to be destroyed. Vast already records it, so read that
+# file rather than restructuring stdout: routing it through `tee` made stdout a
+# pipe, and one dead tee then kills bash with an untrapped SIGPIPE — no EXIT
+# trap, no failure report, and no self-destruct.
+GPPB_LOG_PATH="${GPPB_LOG_PATH:-/var/log/onstart.log}"
 
 # self-destruct-begin
 # `poweroff` is denied in an unprivileged container — on a real instance it
@@ -125,7 +126,7 @@ on_exit() {
   self_destruct
 }
 # failure-report-end
-trap on_exit EXIT
+trap on_exit EXIT TERM HUP PIPE
 
 # 2. Fetch the harness at a pinned revision. A rented GPU never runs whatever
 # happens to be on the branch tip.
