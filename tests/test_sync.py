@@ -86,3 +86,50 @@ def test_sync_does_not_re_download_a_result_already_recorded(tmp_path: Path):
 
     assert written == [], "an archived result must not be pulled back in"
     assert not (tmp_path / "done.json").exists()
+
+
+def test_sync_ignores_failure_reports():
+    """Failure logs share the bucket with results because the sink only accepts
+    .json keys. Validating one as a BenchResult would abort the whole sync, so
+    the results directory would go stale exactly when a run has just failed."""
+    import httpx
+    from launch.sync import sync
+    import tempfile
+    from pathlib import Path
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("_list"):
+            return httpx.Response(200, json={"objects": [
+                {"key": "fail-1755000000-42.json"},
+                {"key": "vllm-A-tp1-aaaaaaaa.json"},
+            ]})
+        if "fail-" in request.url.path:
+            return httpx.Response(200, json={"kind": "failure", "exit_code": 1,
+                                             "log": "boom"})
+        return httpx.Response(200, text=_result("vllm-A-tp1-aaaaaaaa", partial=False))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        client = httpx.Client(transport=httpx.MockTransport(handler))
+        written = sync(Path(tmp), token="t", client=client)
+        assert written == ["vllm-A-tp1-aaaaaaaa"]
+        assert not (Path(tmp) / "fail-1755000000-42.json").exists()
+
+
+def test_failures_reads_the_logs_a_dead_instance_left_behind():
+    import httpx
+    from launch.sync import failures
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("_list"):
+            return httpx.Response(200, json={"objects": [
+                {"key": "fail-1755000000-42.json"},
+                {"key": "vllm-A-tp1-aaaaaaaa.json"},
+            ]})
+        return httpx.Response(200, json={"kind": "failure", "exit_code": 7,
+                                         "log": "ValueError: nope"})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    found = failures(token="t", client=client)
+    assert [f["key"] for f in found] == ["fail-1755000000-42.json"]
+    assert found[0]["exit_code"] == 7
+    assert "ValueError" in found[0]["log"]

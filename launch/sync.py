@@ -13,6 +13,10 @@ import httpx
 
 from gppb.models import BenchResult
 
+# Failure logs live in the same bucket because the sink Worker only accepts
+# .json keys. The prefix is what keeps them out of the published record.
+FAILURE_PREFIX = "fail-"
+
 SINK_URL = os.environ.get("SINK_URL", "https://gppb-sink.sfraser.workers.dev")
 TOKEN_FILE = Path.home() / ".gppb-sink-token"
 
@@ -50,7 +54,7 @@ def sync(
     written: list[str] = []
     try:
         for key in list_keys(owned, sink_url, token):
-            if key in already:
+            if key in already or key.startswith(FAILURE_PREFIX):
                 continue
             response = owned.get(
                 f"{sink_url.rstrip('/')}/{key}",
@@ -70,7 +74,44 @@ def sync(
     return written
 
 
+def failures(
+    sink_url: str = SINK_URL,
+    token: str | None = None,
+    client: httpx.Client | None = None,
+) -> list[dict]:
+    """Fetch the logs of runs that died before publishing a result.
+
+    Without these a failed run is indistinguishable from a finished one: the
+    container destroys itself either way and takes its log with it."""
+    token = token or TOKEN_FILE.read_text().strip()
+    owned = client or httpx.Client()
+    found: list[dict] = []
+    try:
+        for key in list_keys(owned, sink_url, token):
+            if not key.startswith(FAILURE_PREFIX):
+                continue
+            response = owned.get(
+                f"{sink_url.rstrip('/')}/{key}",
+                headers={"Authorization": f"Bearer {token}"}, timeout=60.0,
+            )
+            response.raise_for_status()
+            found.append({"key": key, **response.json()})
+    finally:
+        if client is None:
+            owned.close()
+    return found
+
+
 if __name__ == "__main__":
+    import sys
+
+    if "--failures" in sys.argv:
+        for report in failures():
+            print(f"=== {report['key']} exit {report.get('exit_code')} "
+                  f"{report.get('model', '')}")
+            print(report.get("log", ""))
+        raise SystemExit(0)
+
     names = sync(Path("results"))
     print(f"synced {len(names)} complete results")
     for name in sorted(names):
