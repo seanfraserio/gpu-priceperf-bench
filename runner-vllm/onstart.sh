@@ -105,7 +105,10 @@ request = urllib.request.Request(
     os.environ["SINK_URL"].rstrip("/") + "/" + os.environ["GPPB_FAIL_KEY"],
     data=body, method="PUT",
     headers={"Content-Type": "application/json",
-             "Authorization": "Bearer " + os.environ["SINK_TOKEN"]},
+             "Authorization": "Bearer " + os.environ["SINK_TOKEN"],
+             # Cloudflare answers urllib default agent with 403, so without
+             # this the report is rejected before the token is even read.
+             "User-Agent": "gppb-runner/1.0"},
 )
 urllib.request.urlopen(request, timeout=60).read()
 ' && echo "failure report: uploaded ${GPPB_FAIL_KEY}" \

@@ -118,3 +118,14 @@ def test_self_destruct_cannot_hang_on_a_stalled_api_call():
         body = open(script).read()
         block = body[body.index("# self-destruct-begin"):body.index("# self-destruct-end")]
         assert "--max-time" in block, script
+
+
+def test_the_upload_identifies_itself_with_a_real_user_agent():
+    """Cloudflare answers Python-urllib's default User-Agent with 403, so every
+    failure report was silently rejected while the stubbed tests above passed.
+    The results themselves upload through httpx, whose agent is allowed, which
+    is why only the diagnostic path was dark."""
+    body = open(SCRIPT).read()
+    block = body[body.index("# failure-report-begin"):body.index("# failure-report-end")]
+    assert "User-Agent" in block, "an unset agent is rejected before it is read"
+    assert "urllib" not in block.split("User-Agent")[1].split("\n")[0]
