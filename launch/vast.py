@@ -75,6 +75,10 @@ class Offer:
     inet_down_mbps: float | None = None
     reliability: float | None = None
     machine_id: int | None = None
+    # The highest CUDA the host's driver supports. The stock vLLM image needs
+    # a recent one: too old and the engine dies at startup with CUDA error 803,
+    # after the pull and the weights have already been paid for.
+    cuda_max_good: float | None = None
     # Vast's gpu_name query does not pin the memory variant: "A100_SXM4"
     # returns 40GB and 80GB cards together, and the cheapest are the small
     # ones. The matrix decides what fits from the tier's declared VRAM, so
@@ -91,6 +95,7 @@ def select_offer(
     min_reliability: float | None = None,
     min_vram_gb: float | None = None,
     blocked: set[int] | None = None,
+    min_cuda: float | None = None,
 ) -> Offer:
     """Cheapest qualifying offer, or abort. Never silently upgrade.
 
@@ -112,11 +117,16 @@ def select_offer(
         # A host that has already taken a run's money and returned nothing
         # keeps its advertised numbers, and stays the cheapest.
         and (not blocked or o.machine_id not in blocked)
+        # An offer that does not say what its driver supports is not assumed
+        # to support anything: the cost of guessing wrong is a paid boot.
+        and (min_cuda is None or (o.cuda_max_good or 0.0) >= min_cuda)
     ]
     if not matches:
         detail = f"at or under ${max_hourly}/hr"
         if min_inet_down_mbps is not None:
             detail += f", >={min_inet_down_mbps}Mbps down"
+        if min_cuda is not None:
+            detail += f", CUDA >={min_cuda}"
         if min_reliability is not None:
             detail += f", >={min_reliability} reliability"
         if min_vram_gb is not None:
@@ -192,6 +202,10 @@ def search_offers(gpu_name: str, num_gpus: int) -> list[Offer]:
             # The listing is what gets rented; the machine is what keeps
             # failing, and it can come back under a new listing id.
             machine_id=item.get("machine_id"),
+            cuda_max_good=(
+                float(item["cuda_max_good"])
+                if item.get("cuda_max_good") is not None else None
+            ),
         )
         for item in json.loads(raw)
     ]

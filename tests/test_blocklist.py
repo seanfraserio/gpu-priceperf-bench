@@ -75,3 +75,42 @@ def test_offers_carry_the_machine_they_run_on(monkeypatch):
     # and replacing run() on it leaks into every later test.
     monkeypatch.setattr(vast.subprocess, "run", lambda *a, **k: _Done())
     assert vast.search_offers("RTX_5090", 1)[0].machine_id == 42
+
+
+def test_a_host_whose_driver_is_too_old_is_not_rented():
+    """CUDA error 803: the image's runtime needs a newer driver than the host
+    has. vast publishes cuda_max_good per offer, so this is a filter, not a
+    failure to pay for."""
+    old = Offer(id=1, gpu_name="RTX 5090", num_gpus=1, hourly_usd=0.33,
+                inet_down_mbps=1500.0, reliability=0.99, vram_gb=32.0,
+                machine_id=1, cuda_max_good=12.8)
+    new = Offer(id=2, gpu_name="RTX 5090", num_gpus=1, hourly_usd=0.44,
+                inet_down_mbps=1500.0, reliability=0.99, vram_gb=32.0,
+                machine_id=2, cuda_max_good=13.0)
+    assert select_offer([old, new], "RTX_5090", 1, max_hourly=1.0,
+                        min_cuda=13.0).id == 2
+
+
+def test_an_offer_without_a_cuda_version_is_not_assumed_good():
+    unknown = Offer(id=1, gpu_name="RTX 5090", num_gpus=1, hourly_usd=0.33,
+                    inet_down_mbps=1500.0, reliability=0.99, vram_gb=32.0,
+                    machine_id=1)
+    with pytest.raises(LookupError):
+        select_offer([unknown], "RTX_5090", 1, max_hourly=1.0, min_cuda=13.0)
+
+
+def test_offers_carry_the_drivers_cuda_ceiling(monkeypatch):
+    import json
+    import launch.vast as vast
+
+    raw = json.dumps([{
+        "id": 1, "machine_id": 42, "gpu_name": "RTX 5090", "num_gpus": 1,
+        "dph_total": "0.36", "inet_down": 1500, "reliability2": 0.99,
+        "gpu_ram": 32768, "cuda_max_good": 13.0,
+    }])
+
+    class _Done:
+        stdout = raw
+
+    monkeypatch.setattr(vast.subprocess, "run", lambda *a, **k: _Done())
+    assert vast.search_offers("RTX_5090", 1)[0].cuda_max_good == 13.0

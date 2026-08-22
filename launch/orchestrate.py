@@ -43,6 +43,16 @@ TOKEN_FILE = Path.home() / ".gppb-sink-token"
 MIN_INET_DOWN_MBPS = 900.0
 MIN_RELIABILITY = 0.97
 
+# The image is a cu128 build, so a driver that tops out below 12.8 cannot run
+# it: one A100 host advertises 12.2, and a run there pays for the pull and the
+# weights before dying with CUDA error 803.
+#
+# Deliberately not set higher. 803 is also what a host with a broken driver
+# install reports, and one observed failure is not evidence of a version
+# threshold — a floor of 13.0 would have emptied the L40S pool entirely on the
+# strength of a guess. Broken hosts are the blocklist's job.
+MIN_CUDA = 12.8
+
 # Three stop-clocks, and the ordering between them is the whole point.
 #
 # The container's timers start when onstart runs, which is *after* Vast has
@@ -153,6 +163,8 @@ def preflight(search: Callable[[str, int], list] | None = None) -> list[str]:
                 min_inet_down_mbps=MIN_INET_DOWN_MBPS,
                 min_reliability=MIN_RELIABILITY,
                 min_vram_gb=tier.vram_gb * 0.95,
+                min_cuda=MIN_CUDA,
+                blocked=BLOCKLIST.machines(),
             )
         except LookupError:
             blocked.append(key)
@@ -218,6 +230,7 @@ def run_one(
         # report 79-80GB for the same 80GB part.
         min_vram_gb=tier.vram_gb * 0.95,
         blocked=BLOCKLIST.machines(),
+        min_cuda=MIN_CUDA,
     )
     env = build_env(
         model=model.hf_id, precision=model.precision, tp_size=1,
@@ -378,7 +391,13 @@ def run_matrix(
             break
         print(f"[{position}/{len(planned)}] {tier.key} {model.hf_id} "
               f"run {run.run_index} (~${estimate:.2f})")
-        outcome = run_one(run, gppb_ref)
+        try:
+            outcome = run_one(run, gppb_ref)
+        except LookupError as exc:
+            # The floors and the blocklist can between them empty a tier's
+            # pool. Skip that run; the other tiers are still worth collecting.
+            print(f"    skipped: {exc}")
+            continue
         print(f"    {outcome}")
         done.append(run)
         streak = 0 if outcome == "completed" else streak + 1

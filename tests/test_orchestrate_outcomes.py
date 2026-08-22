@@ -170,3 +170,35 @@ def test_a_host_that_delivered_stays_available(monkeypatch, tmp_path):
     monkeypatch.setattr(orchestrate, "BLOCKLIST", blocked)
     orchestrate.run_one(RUN, "ref", sink_keys=keys, is_complete=lambda key: True)
     assert blocked.machines() == set()
+
+
+def test_a_tier_with_no_rentable_host_skips_instead_of_killing_the_sweep(monkeypatch):
+    """The blocklist and the floors can between them empty a tier's pool. That
+    is a reason to move to the next run, not to abandon sixteen paid runs with
+    an unhandled LookupError."""
+    monkeypatch.setattr(orchestrate, "reap", lambda: [])
+    monkeypatch.setattr(orchestrate, "preflight", lambda: [])
+    monkeypatch.setattr(orchestrate, "current_credit", lambda: 40.0)
+    seen = []
+
+    def sometimes_starved(run, ref, **kwargs):
+        seen.append(run.tier_key)
+        if run.tier_key == "L40S":
+            raise LookupError("no 1x L40S — not renting")
+        return "completed"
+
+    monkeypatch.setattr(orchestrate, "run_one", sometimes_starved)
+    orchestrate.run_matrix(dry_run=False, resume=False, limit=6)
+    assert len(seen) == 6, "a starved tier must not end the sweep"
+
+
+def test_preflight_uses_the_same_floors_the_sweep_will(monkeypatch):
+    """A preflight that checks looser floors than run_one reports a tier as
+    rentable and then the sweep cannot rent it — which is the report being
+    worse than useless, because it was consulted instead of the truth."""
+    import inspect
+
+    source = inspect.getsource(orchestrate.preflight)
+    for floor in ("min_inet_down_mbps", "min_reliability", "min_vram_gb",
+                  "min_cuda", "blocked"):
+        assert floor in source, floor
