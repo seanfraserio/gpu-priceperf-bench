@@ -105,3 +105,30 @@ def test_a_saturated_run_is_still_kept_apart_from_an_upper_bound():
         _result("NVIDIA GeForce RTX 5090", SHORT, "vllm-b"),
     ]))
     assert len(rows) == 2
+
+
+def _for_model(gpu: str, model: str, steps: list[StepResult], run_id: str) -> BenchResult:
+    result = _result(gpu, steps, run_id)
+    result.target = result.target.model_copy(update={"model": model})
+    return result
+
+
+def test_a_row_names_the_model_it_served():
+    """The label was the GPU alone, so an A100 serving the 27B and an A100
+    serving the 8B landed in one group and were reduced to a single median — a
+    number describing neither model, published as if it described both."""
+    rows = median_rows(cost_rows([
+        _for_model("NVIDIA A100-SXM4-80GB", "Qwen/Qwen3-8B", FULL, "vllm-a"),
+        _for_model("NVIDIA A100-SXM4-80GB", "Qwen/Qwen3.8-27B", FULL, "vllm-b"),
+    ]))
+    assert len(rows) == 2, [row.label for row in rows]
+    assert any("Qwen3-8B" in row.label for row in rows)
+    assert any("Qwen3.8-27B" in row.label for row in rows)
+
+
+def test_the_same_model_on_the_same_card_still_groups():
+    rows = median_rows(cost_rows([
+        _for_model("NVIDIA A100-SXM4-80GB", "Qwen/Qwen3.8-27B", FULL, "vllm-b"),
+        _for_model("NVIDIA A100-SXM4-80GB", "Qwen/Qwen3.8-27B", FULL, "vllm-c"),
+    ]))
+    assert len(rows) == 1, [row.label for row in rows]

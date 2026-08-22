@@ -39,6 +39,27 @@ def load_results(directory: Path) -> list[BenchResult]:
     return results
 
 
+def short_model(model: str) -> str:
+    """The model name without its org prefix — "Qwen/Qwen3.8-27B" -> "Qwen3.8-27B"."""
+    return model.rsplit("/", 1)[-1]
+
+
+def row_label(result: BenchResult) -> str:
+    """What was served, and on what.
+
+    The label was the hardware alone, which made an A100 running the 8B and an
+    A100 running the 27B one group: `median_rows` keys on the label, so the two
+    were reduced to a single $/1M describing neither. The model is half the
+    measurement and belongs in the identity of the row.
+    """
+    if result.target.kind == "openrouter":
+        return f"{result.target.provider or 'unknown'} {short_model(result.target.model)}"
+    return (
+        f"{result.hardware.gpu_name} TP{result.target.tp_size} "
+        f"{short_model(result.target.model)}"
+    )
+
+
 def cost_rows(results: list[BenchResult]) -> list[CostRow]:
     rows: list[CostRow] = []
     for result in results:
@@ -47,7 +68,7 @@ def cost_rows(results: list[BenchResult]) -> list[CostRow]:
         is_saturated = saturated(result.steps)
         if result.target.kind == "openrouter":
             rows.append(CostRow(
-                label=result.target.provider or "unknown",
+                label=row_label(result),
                 usd_per_mtok=api_usd_per_mtok(
                     result.pricing.input_per_mtok_usd or 0.0,
                     result.pricing.output_per_mtok_usd or 0.0,
@@ -62,7 +83,7 @@ def cost_rows(results: list[BenchResult]) -> list[CostRow]:
         else:
             rate = result.pricing.hourly_rate_usd or 0.0
             rows.append(CostRow(
-                label=f"{result.hardware.gpu_name} TP{result.target.tp_size}",
+                label=row_label(result),
                 usd_per_mtok=selfhost_usd_per_mtok(rate, knee.output_tokens_per_sec),
                 tokens_per_sec=knee.output_tokens_per_sec,
                 coldstart_usd=coldstart_usd(result.timings.boot_seconds or 0.0, rate),
@@ -117,7 +138,7 @@ def throughput_curves(
     performance characteristic the hardware does not have."""
     by_label: dict[str, dict[int, list[float]]] = defaultdict(lambda: defaultdict(list))
     for result in results:
-        label = f"{result.hardware.gpu_name} TP{result.target.tp_size}"
+        label = row_label(result)
         for step in result.steps:
             if step.requests_completed == 0:
                 continue

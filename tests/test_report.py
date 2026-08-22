@@ -52,8 +52,8 @@ def test_cost_rows_uses_the_throughput_knee():
 def test_cost_rows_computes_coldstart_for_selfhost_only():
     rows = cost_rows([_vllm("a", 1000.0), _api("chutes")])
     by_label = {r.label: r for r in rows}
-    assert by_label["NVIDIA H100 80GB HBM3 TP1"].coldstart_usd > 0
-    assert by_label["chutes"].coldstart_usd is None
+    assert by_label["NVIDIA H100 80GB HBM3 TP1 Qwen3.8-27B"].coldstart_usd > 0
+    assert by_label["chutes qwen3.8-27b"].coldstart_usd is None
 
 
 def test_api_rows_use_blended_pricing():
@@ -102,8 +102,8 @@ def test_throughput_curves_group_by_tier():
         _curve_result("a", "H100", [(1, 40.0), (8, 300.0), (64, 900.0)]),
         _curve_result("b", "RTX 5090", [(1, 30.0), (8, 200.0), (64, 500.0)]),
     ])
-    assert set(curves) == {"H100 TP1", "RTX 5090 TP1"}
-    assert curves["H100 TP1"] == [(1, 40.0), (8, 300.0), (64, 900.0)]
+    assert set(curves) == {"H100 TP1 Qwen3.8-27B", "RTX 5090 TP1 Qwen3.8-27B"}
+    assert curves["H100 TP1 Qwen3.8-27B"] == [(1, 40.0), (8, 300.0), (64, 900.0)]
 
 
 def test_throughput_curves_take_the_median_across_repeat_runs():
@@ -115,7 +115,7 @@ def test_throughput_curves_take_the_median_across_repeat_runs():
         _curve_result("b", "H100", [(1, 20.0)], run_index=2),
         _curve_result("c", "H100", [(1, 90.0)], run_index=3),
     ])
-    assert curves["H100 TP1"] == [(1, 20.0)]
+    assert curves["H100 TP1 Qwen3.8-27B"] == [(1, 20.0)]
 
 
 def test_throughput_curves_exclude_failed_steps():
@@ -126,7 +126,7 @@ def test_throughput_curves_exclude_failed_steps():
     r.steps[1].requests_completed = 0
     r.steps[1].requests_failed = 32
     curves = throughput_curves([r])
-    assert curves["H100 TP1"] == [(1, 40.0)]
+    assert curves["H100 TP1 Qwen3.8-27B"] == [(1, 40.0)]
 
 
 def test_throughput_chart_writes_a_file(tmp_path):
