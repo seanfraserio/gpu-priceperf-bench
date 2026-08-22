@@ -3,7 +3,12 @@ from __future__ import annotations
 
 import random
 
-# A small closed vocabulary keeps tokenisation stable across tokenisers.
+# A small closed vocabulary keeps tokenisation stable across tokenisers, and
+# every word in it is a single token under Qwen's BPE. That is what lets
+# `input_tokens` be quoted honestly: measured against Qwen/Qwen3-8B's
+# tokenizer.json on 2026-08-21, a corpus configured for 1024 encodes to 1029
+# tokens — a 1.00x ratio. Adding a multi-token word here would break that, and
+# the published method note would start overstating the input length.
 _VOCAB = [
     "system", "network", "latency", "kernel", "memory", "throughput", "buffer",
     "queue", "packet", "cluster", "tensor", "gradient", "storage", "compute",
