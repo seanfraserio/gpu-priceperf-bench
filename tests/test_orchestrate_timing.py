@@ -79,3 +79,10 @@ def test_skip_resumes_a_sweep_without_repaying_for_finished_runs():
 def test_skip_and_limit_compose():
     """--limit counts the runs actually attempted, not the ones skipped."""
     assert len(orch.run_matrix(skip=2, limit=3, dry_run=True)) == 3
+
+
+def test_pull_budget_is_far_shorter_than_the_run_itself():
+    """A stalled pull uploads nothing and bills the whole time. Two of the
+    first four hosts stalled, so the pull budget has to be impatient relative
+    to the run it precedes."""
+    assert orch.PULL_TIMEOUT_MINUTES < orch.CONTAINER_TTL_MINUTES

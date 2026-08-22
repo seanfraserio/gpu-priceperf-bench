@@ -51,9 +51,14 @@ CONTAINER_TTL_MINUTES = 60
 RUN_TIMEOUT_MINUTES = 75
 CONTAINER_BACKSTOP_MINUTES = 90
 
-# Pull plus scheduling, billed but not part of the run. Measured worst case
-# was 23 minutes on a slow host; the bandwidth floor should prevent a repeat.
-PULL_TIMEOUT_MINUTES = 40
+# Pull plus scheduling, billed but not part of the run.
+#
+# A host past the 600Mbps floor should pull the ~15GB image in about four
+# minutes; run 2's host was serving in three. Two of the first four hosts
+# instead sat in "loading" indefinitely and uploaded nothing, so patience here
+# is billed for nothing. 25 minutes is roughly six times the expected pull and
+# still well short of the 40 that cost a wasted A100 slot.
+PULL_TIMEOUT_MINUTES = 25
 
 POLL_SECONDS = 60
 
