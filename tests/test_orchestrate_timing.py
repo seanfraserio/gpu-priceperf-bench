@@ -145,3 +145,33 @@ def test_the_anchor_keeps_the_timings_that_are_known_to_work():
     """Run 2 completed a full nine-level sweep inside these."""
     t = orch.timers_for(25.0)
     assert (t.ttl, t.run_timeout, t.backstop) == (60, 75, 90)
+
+
+def test_preflight_reports_a_tier_that_can_rent_nothing():
+    """Raising a floor is how a tier silently stops being rentable — declaring
+    the L40S at 48GB when hosts report 45 would have failed all six of its
+    runs one at a time, mid-sweep. Better to know before spending."""
+    from launch.vast import Offer
+
+    def offers_for(gpu_name, num_gpus):
+        if gpu_name == "L40S":
+            return [Offer(id=1, gpu_name="L40S", num_gpus=1, hourly_usd=0.80,
+                          inet_down_mbps=200.0, reliability=0.99, vram_gb=45.0)]
+        return [Offer(id=2, gpu_name=gpu_name.replace("_", " "), num_gpus=1,
+                      hourly_usd=0.30, inet_down_mbps=2000.0, reliability=0.99,
+                      vram_gb=999.0)]
+
+    unsatisfiable = orch.preflight(search=offers_for)
+    assert "L40S" in unsatisfiable
+    assert len(unsatisfiable) == 1
+
+
+def test_preflight_is_quiet_when_every_tier_can_rent():
+    from launch.vast import Offer
+
+    def offers_for(gpu_name, num_gpus):
+        return [Offer(id=2, gpu_name=gpu_name.replace("_", " "), num_gpus=1,
+                      hourly_usd=0.30, inet_down_mbps=2000.0, reliability=0.99,
+                      vram_gb=999.0)]
+
+    assert orch.preflight(search=offers_for) == []

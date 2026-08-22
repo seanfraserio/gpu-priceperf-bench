@@ -29,7 +29,14 @@ TOKEN_FILE = Path.home() / ".gppb-sink-token"
 
 # Hosts slower than this spend more on pulling the image than they save on
 # hourly rate — measured, not guessed: a 90Mbps host burned 23 minutes.
-MIN_INET_DOWN_MBPS = 600.0
+#
+# Raised from 600 after three of the first seven hosts sat in "loading" until
+# the pull budget ran out. Every one of them cleared the old floor, so the
+# advertised figure is a weak predictor of how fast a 15GB image actually
+# arrives; the hosts just above the floor are the ones that stall. A stall
+# costs a full pull budget at the run's hourly rate, while the next host up
+# the ladder costs about 8% more per hour — the trade is not close.
+MIN_INET_DOWN_MBPS = 900.0
 MIN_RELIABILITY = 0.97
 
 # Three stop-clocks, and the ordering between them is the whole point.
@@ -125,6 +132,29 @@ def _instances() -> list[dict]:
     return json.loads(raw)
 
 
+def preflight(search: Callable[[str, int], list] | None = None) -> list[str]:
+    """Tiers that cannot currently rent anything under the configured floors.
+
+    Raising a floor is how a tier silently stops being rentable: declaring the
+    L40S at 48GB when every host reports 45 would have failed all six of its
+    runs one at a time, mid-sweep, each after a full pull budget. Cheap to
+    check up front, and it costs nothing to be wrong about."""
+    lookup = search or search_offers
+    blocked: list[str] = []
+    for key, tier in TIERS.items():
+        try:
+            select_offer(
+                lookup(key, 1), key, 1,
+                max_hourly=tier.typical_hourly_usd * 2.0,
+                min_inet_down_mbps=MIN_INET_DOWN_MBPS,
+                min_reliability=MIN_RELIABILITY,
+                min_vram_gb=tier.vram_gb * 0.95,
+            )
+        except LookupError:
+            blocked.append(key)
+    return blocked
+
+
 def run_one(run: Run, gppb_ref: str, ttl_minutes: int | None = None) -> str:
     """Rent one instance, wait for it to finish, and report how it ended.
 
@@ -217,6 +247,12 @@ def run_matrix(
     stranded = reap()
     if stranded:
         print(f"reaped before starting: {stranded}")
+
+    blocked = preflight()
+    if blocked:
+        # Reported, not fatal: the other tiers are still worth collecting, and
+        # a tier can become rentable again while the sweep is running.
+        print(f"WARNING: no qualifying offers right now for {', '.join(blocked)}")
 
     gate = BudgetGate(current_credit(), reserve_usd=reserve_usd)
     print(f"credit ${gate.remaining:.2f}, reserve ${reserve_usd:.2f}")
