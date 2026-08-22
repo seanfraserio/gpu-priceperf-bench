@@ -68,3 +68,21 @@ def test_partials_can_be_fetched_deliberately(tmp_path: Path):
         written = sync(tmp_path, sink_url="https://sink.test", token="secret",
                        client=client, include_partial=True)
     assert sorted(written) == ["done", "half"]
+
+
+def test_sync_does_not_re_download_a_result_already_recorded(tmp_path: Path):
+    """Including one filed under a superseded/ subdirectory.
+
+    Results found to have been measured wrongly are archived rather than
+    deleted — they are the record of what was actually run — but the sink still
+    holds them, so without this every sync would drag them back into the
+    directory the report reads."""
+    archive = tmp_path / "superseded-client-pool"
+    archive.mkdir()
+    (archive / "done.json").write_text("{}")
+
+    with httpx.Client(transport=_transport()) as client:
+        written = sync(tmp_path, sink_url="https://sink.test", token="secret", client=client)
+
+    assert written == [], "an archived result must not be pulled back in"
+    assert not (tmp_path / "done.json").exists()

@@ -139,7 +139,10 @@ def build_env(
         "RUN_INDEX": str(run_index),
         "HOURLY_RATE_USD": str(hourly_usd),
         "TTL_MINUTES": str(ttl_minutes),
-        "SWEEP": "1,2,4,8,16,32,64,128,256",
+        # Extended past 256 because the A100 was still climbing at the old
+        # ceiling: a sweep that never turns over yields an upper bound, and
+        # upper bounds are excluded from the published comparison.
+        "SWEEP": "1,2,4,8,16,32,64,128,256,512",
         "MAX_MODEL_LEN": "32768",
         # Pinned revision of the harness the instance clones at boot.
         "GPPB_REF": gppb_ref,

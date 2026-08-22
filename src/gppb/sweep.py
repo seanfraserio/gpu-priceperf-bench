@@ -40,7 +40,15 @@ async def run_step(
     prompts = build_corpus(total_requests, workload.input_tokens)
     semaphore = asyncio.Semaphore(concurrency)
 
-    async with httpx.AsyncClient() as client:
+    # httpx defaults to 100 connections. Every level above that silently
+    # measured the client's pool instead of the server: requests queued on the
+    # laptop, TTFT at concurrency 128 rose from 671ms to 11829ms, and the
+    # resulting fall in throughput read as a hardware saturation knee.
+    limits = httpx.Limits(
+        max_connections=concurrency + 16,
+        max_keepalive_connections=concurrency + 16,
+    )
+    async with httpx.AsyncClient(limits=limits) as client:
         async def one(prompt: str):
             async with semaphore:
                 return await stream_one(

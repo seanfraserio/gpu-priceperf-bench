@@ -1,3 +1,4 @@
+import httpx
 import pytest
 from gppb.sweep import stats_from, run_sweep, run_step
 from gppb.models import Workload
@@ -97,3 +98,49 @@ async def test_run_sweep_calls_before_step_ahead_of_each_level(monkeypatch):
     await run_sweep("http://x", "m", [1], Workload(), on_step, before_step=before_step)
     assert order[0] == "before-1"
     assert order[-1] == "after"
+
+
+async def test_the_client_pool_never_caps_the_concurrency_under_test():
+    """httpx.AsyncClient defaults to max_connections=100, so levels above that
+    measured the client's connection pool rather than the server.
+
+    This is how it showed up in real data: TTFT at concurrency 128 jumped from
+    671ms to 11829ms and throughput fell, which read as a textbook saturation
+    knee. It was requests queueing for a socket on the laptop."""
+    seen: list[int] = []
+
+    class _Recorder(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            return httpx.Response(200, text="data: [DONE]\n\n")
+
+    original = httpx.AsyncClient.__init__
+
+    ABSENT = object()
+
+    def spy(self, *args, **kwargs):
+        # Absent limits and limits=None are not the same thing: absent means
+        # httpx's default of 100, which is the bug. Only an explicit setting
+        # counts as configured.
+        seen.append(kwargs.get("limits", ABSENT))
+        return original(self, *args, **kwargs)
+
+    httpx.AsyncClient.__init__ = spy
+    try:
+        await run_step(
+            "http://test", "m", concurrency=256, workload=Workload(),
+            requests_per_step=1,
+        )
+    except Exception:
+        pass
+    finally:
+        httpx.AsyncClient.__init__ = original
+
+    assert seen, "run_step must build a client"
+    assert seen[0] is not ABSENT, (
+        "run_step used httpx's default pool of 100 connections while measuring "
+        "concurrency 256"
+    )
+    cap = getattr(seen[0], "max_connections", None)
+    assert cap is None or cap >= 256, (
+        f"pool capped at {cap} while measuring concurrency 256"
+    )

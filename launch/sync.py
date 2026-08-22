@@ -40,10 +40,18 @@ def sync(
     exactly the blend that median_rows now refuses."""
     token = token or TOKEN_FILE.read_text().strip()
     directory.mkdir(parents=True, exist_ok=True)
+    # Anything already recorded anywhere under results/ is left alone, which
+    # includes results archived into a superseded/ subdirectory after being
+    # found to have been measured wrongly. They stay in the sink as the record
+    # of what ran; without this every sync would drag them back into the
+    # directory the report reads.
+    already = {path.name for path in directory.rglob("*.json")}
     owned = client or httpx.Client()
     written: list[str] = []
     try:
         for key in list_keys(owned, sink_url, token):
+            if key in already:
+                continue
             response = owned.get(
                 f"{sink_url.rstrip('/')}/{key}",
                 headers={"Authorization": f"Bearer {token}"}, timeout=60.0,

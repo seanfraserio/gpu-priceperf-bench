@@ -38,10 +38,14 @@ export default {
     const url = new URL(request.url);
     const key = url.pathname.replace(/^\/+/, "");
 
-    if (request.method !== "PUT" && request.method !== "GET") {
+    if (
+      request.method !== "PUT" &&
+      request.method !== "GET" &&
+      request.method !== "DELETE"
+    ) {
       return new Response("method not allowed\n", {
         status: 405,
-        headers: { Allow: "GET, PUT" },
+        headers: { Allow: "GET, PUT, DELETE" },
       });
     }
 
@@ -80,6 +84,17 @@ export default {
 
     if (!KEY_PATTERN.test(key)) {
       return new Response("invalid key\n", { status: 400 });
+    }
+
+    // Deleting is authenticated and deliberate. A result that turns out to
+    // have been measured wrongly is worse than no result — it is the published
+    // record — but removing one should never be something a stray request can
+    // do, so it takes an explicit method and a well-formed key.
+    if (request.method === "DELETE") {
+      const existing = await env.RESULTS.head(key);
+      if (!existing) return new Response("not found\n", { status: 404 });
+      await env.RESULTS.delete(key);
+      return Response.json({ ok: true, deleted: key });
     }
 
     const declared = Number(request.headers.get("Content-Length") ?? "0");

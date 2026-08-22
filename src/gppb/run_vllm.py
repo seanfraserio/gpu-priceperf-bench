@@ -35,6 +35,28 @@ def parse_levels(raw: str) -> list[int]:
     return [int(part.strip()) for part in raw.split(",") if part.strip()]
 
 
+# Sockets held by in-flight requests, plus room for weights, logs and the
+# server's own descriptors.
+FD_OVERHEAD = 128
+
+
+def assert_fd_headroom(levels: list[int], soft_limit: int | None = None) -> None:
+    """Fail before the sweep starts if the top level cannot open its sockets.
+
+    Each concurrent request holds one. Finding this out at level 512, on the
+    most expensive card in the matrix, is a failure at the worst moment."""
+    if soft_limit is None:
+        import resource
+
+        soft_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
+    needed = max(levels) + FD_OVERHEAD
+    if soft_limit < needed:
+        raise RuntimeError(
+            f"sweep needs ~{needed} file descriptors for concurrency "
+            f"{max(levels)} but the limit is {soft_limit}"
+        )
+
+
 def _nvidia_smi(query: str) -> str:
     """nvidia-smi output, or empty when there is no GPU to ask.
 
@@ -133,6 +155,7 @@ async def main() -> int:
         assert_vllm_version(vllm.__version__)
         vllm_version = vllm.__version__
 
+    assert_fd_headroom(levels)
     boot_seconds = await _wait_healthy(base_url)
 
     sink = make_sink(os.environ.get("SINK_URL"))

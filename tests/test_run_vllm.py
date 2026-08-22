@@ -72,3 +72,15 @@ async def test_wait_healthy_keeps_waiting_while_the_server_is_alive():
         await _wait_healthy(
             "http://127.0.0.1:9", timeout_s=0.2, is_alive=lambda: True
         )
+
+
+def test_sweep_levels_are_checked_against_the_fd_limit_up_front():
+    """Each in-flight request holds a socket. Discovering at level 512, on the
+    most expensive card, that the container caps file descriptors is a failure
+    at the worst possible moment."""
+    import pytest
+    from gppb.run_vllm import assert_fd_headroom
+
+    assert_fd_headroom([1, 2, 4, 256], soft_limit=1024)
+    with pytest.raises(RuntimeError, match="file descriptor"):
+        assert_fd_headroom([1, 2, 512], soft_limit=256)
