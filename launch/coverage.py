@@ -6,9 +6,11 @@ models is how a two-sample median ends up presented as three."""
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import replace
 
 from gppb.cost import saturated
 from gppb.models import BenchResult
+
 from launch.matrix import MODELS, RUNS_PER_CONFIG, Run, build_matrix
 
 # A result records what nvidia-smi reported, which is not the string Vast was
@@ -88,7 +90,10 @@ def missing(
             1 for r in owed if (r.tier_key, r.model_key) == cell
         )
         if banked < runs_per_config:
-            owed.append(run)
+            # Numbered after what is already banked, not by position in the
+            # matrix: a resumed sweep that plans a second "run 1" leaves two
+            # results both claiming to be the first of three.
+            owed.append(replace(run, run_index=banked + 1))
     return owed
 
 

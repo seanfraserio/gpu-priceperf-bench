@@ -100,3 +100,24 @@ def test_a_40gb_a100_is_not_filed_under_the_80gb_tier():
     fits and what the KV cache can hold. The first live A100 run rented one."""
     assert tier_for("NVIDIA A100-SXM4-40GB") is None
     assert tier_for("NVIDIA A100-SXM4-80GB") == "A100_SXM4"
+
+
+def test_a_resumed_run_is_numbered_after_the_ones_already_banked():
+    """missing() reused the matrix's own indices, so with one RTX 5090 anchor
+    result already banked it planned another 'run 1'. Two results for the same
+    cell would then both claim to be the first, and the record would no longer
+    say which three runs the median came from."""
+    from launch.coverage import missing
+
+    banked = [_result("NVIDIA GeForce RTX 5090", "Qwen/Qwen3-8B", SATURATED)]
+    owed = missing(banked)
+    cell = [r for r in owed if r.tier_key == "RTX_5090" and r.model_key == "anchor"]
+    assert [r.run_index for r in cell] == [2, 3]
+
+
+def test_an_untouched_cell_still_starts_at_one():
+    from launch.coverage import missing
+
+    owed = missing([])
+    cell = [r for r in owed if r.tier_key == "RTX_5090" and r.model_key == "anchor"]
+    assert [r.run_index for r in cell] == [1, 2, 3]
