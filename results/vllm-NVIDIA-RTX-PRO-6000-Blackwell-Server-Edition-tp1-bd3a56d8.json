@@ -1,0 +1,242 @@
+{
+  "schema_version": "1",
+  "run_id": "vllm-NVIDIA-RTX-PRO-6000-Blackwell-Server-Edition-tp1-bd3a56d8",
+  "valid": true,
+  "invalid_reason": null,
+  "partial": false,
+  "target": {
+    "kind": "vllm",
+    "model": "Qwen/Qwen3.8-27B",
+    "precision": "fp8",
+    "tp_size": 1,
+    "provider": null
+  },
+  "hardware": {
+    "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "gpu_count": 1,
+    "driver_version": null,
+    "vllm_version": "0.27.1",
+    "peak_vram_bytes": 94840553472
+  },
+  "pricing": {
+    "hourly_rate_usd": 1.3352,
+    "input_per_mtok_usd": null,
+    "output_per_mtok_usd": null
+  },
+  "timings": {
+    "download_seconds": 138.0,
+    "boot_seconds": 410.6105935573578
+  },
+  "workload": {
+    "input_tokens": 1024,
+    "output_tokens": 256,
+    "temperature": 0.0,
+    "ignore_eos": true,
+    "max_model_len": 32768
+  },
+  "run_index": 2,
+  "steps": [
+    {
+      "concurrency": 1,
+      "requests_completed": 4,
+      "requests_failed": 0,
+      "wall_seconds": 57.53620557487011,
+      "output_tokens_total": 1024,
+      "output_tokens_per_sec": 17.797489246445007,
+      "ttft_ms": {
+        "p50": 128.20315081626177,
+        "p90": 34155.811900272965,
+        "min": 127.51135230064392,
+        "max": 34155.811900272965
+      },
+      "tpot_ms": {
+        "p50": 22.54315888253497,
+        "p90": 22.545557242690347,
+        "min": 22.54058341039162,
+        "max": 22.545557242690347
+      }
+    },
+    {
+      "concurrency": 2,
+      "requests_completed": 8,
+      "requests_failed": 0,
+      "wall_seconds": 24.15932210534811,
+      "output_tokens_total": 2048,
+      "output_tokens_per_sec": 84.77059046067512,
+      "ttft_ms": {
+        "p50": 202.65976525843143,
+        "p90": 235.97856424748898,
+        "min": 172.74926602840424,
+        "max": 235.97856424748898
+      },
+      "tpot_ms": {
+        "p50": 22.877160551062985,
+        "p90": 22.96833022698468,
+        "min": 22.788653836822977,
+        "max": 22.96833022698468
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests_completed": 16,
+      "requests_failed": 0,
+      "wall_seconds": 25.487954162061214,
+      "output_tokens_total": 4096,
+      "output_tokens_per_sec": 160.70336496825982,
+      "ttft_ms": {
+        "p50": 416.52506217360497,
+        "p90": 434.20219980180264,
+        "min": 252.63306684792042,
+        "max": 434.22964960336685
+      },
+      "tpot_ms": {
+        "p50": 23.335253250072984,
+        "p90": 23.958503323442795,
+        "min": 23.32846712247998,
+        "max": 23.95869923719004
+      }
+    },
+    {
+      "concurrency": 8,
+      "requests_completed": 32,
+      "requests_failed": 0,
+      "wall_seconds": 28.235699823126197,
+      "output_tokens_total": 8192,
+      "output_tokens_per_sec": 290.1291645440435,
+      "ttft_ms": {
+        "p50": 818.0910404771566,
+        "p90": 841.472314670682,
+        "min": 409.5920529216528,
+        "max": 841.8458625674248
+      },
+      "tpot_ms": {
+        "p50": 24.446000465575388,
+        "p90": 26.018516018110162,
+        "min": 24.443247329955007,
+        "max": 26.04810594051492
+      }
+    },
+    {
+      "concurrency": 16,
+      "requests_completed": 64,
+      "requests_failed": 0,
+      "wall_seconds": 33.46571466885507,
+      "output_tokens_total": 16384,
+      "output_tokens_per_sec": 489.57567953114113,
+      "ttft_ms": {
+        "p50": 1238.1840143352747,
+        "p90": 1649.1725593805313,
+        "min": 430.0301093608141,
+        "max": 1652.8523433953524
+      },
+      "tpot_ms": {
+        "p50": 27.942082486754536,
+        "p90": 28.25226385657694,
+        "min": 26.45827734879419,
+        "max": 31.049220066736726
+      }
+    },
+    {
+      "concurrency": 32,
+      "requests_completed": 128,
+      "requests_failed": 0,
+      "wall_seconds": 43.93939144723117,
+      "output_tokens_total": 32768,
+      "output_tokens_per_sec": 745.7545250564654,
+      "ttft_ms": {
+        "p50": 1977.1614838391542,
+        "p90": 2769.432995468378,
+        "min": 454.3001130223274,
+        "max": 3289.1737520694733
+      },
+      "tpot_ms": {
+        "p50": 35.485252109812755,
+        "p90": 38.41208711120428,
+        "min": 30.46232618245424,
+        "max": 41.093029797661536
+      }
+    },
+    {
+      "concurrency": 64,
+      "requests_completed": 256,
+      "requests_failed": 0,
+      "wall_seconds": 65.83093308657408,
+      "output_tokens_total": 65536,
+      "output_tokens_per_sec": 995.519840404112,
+      "ttft_ms": {
+        "p50": 2283.720795996487,
+        "p90": 5122.6079147309065,
+        "min": 503.4126229584217,
+        "max": 6618.527980521321
+      },
+      "tpot_ms": {
+        "p50": 55.16859918613645,
+        "p90": 59.108875224403306,
+        "min": 39.12704057407145,
+        "max": 62.334936309386705
+      }
+    },
+    {
+      "concurrency": 128,
+      "requests_completed": 512,
+      "requests_failed": 0,
+      "wall_seconds": 110.71193594671786,
+      "output_tokens_total": 131072,
+      "output_tokens_per_sec": 1183.9012558057045,
+      "ttft_ms": {
+        "p50": 2420.7747196778655,
+        "p90": 9363.425163552165,
+        "min": 610.458068549633,
+        "max": 13778.983611613512
+      },
+      "tpot_ms": {
+        "p50": 98.2167716631118,
+        "p90": 99.98058414488446,
+        "min": 55.34324685440344,
+        "max": 105.97571937330798
+      }
+    },
+    {
+      "concurrency": 256,
+      "requests_completed": 1024,
+      "requests_failed": 0,
+      "wall_seconds": 220.0376190226525,
+      "output_tokens_total": 262144,
+      "output_tokens_per_sec": 1191.3599191100714,
+      "ttft_ms": {
+        "p50": 5231.120920740068,
+        "p90": 25581.799251958728,
+        "min": 921.524016186595,
+        "max": 51605.56600615382
+      },
+      "tpot_ms": {
+        "p50": 186.4030913468085,
+        "p90": 187.08621891690237,
+        "min": 49.024882803068444,
+        "max": 191.05720182552056
+      }
+    },
+    {
+      "concurrency": 512,
+      "requests_completed": 2048,
+      "requests_failed": 0,
+      "wall_seconds": 437.1833682935685,
+      "output_tokens_total": 524288,
+      "output_tokens_per_sec": 1199.2404972916097,
+      "ttft_ms": {
+        "p50": 57342.62387268245,
+        "p90": 78738.40751126409,
+        "min": 1113.3606769144535,
+        "max": 103863.74295130372
+      },
+      "tpot_ms": {
+        "p50": 186.8431023997711,
+        "p90": 187.6129353163289,
+        "min": 76.54964443953598,
+        "max": 201.78999515242467
+      }
+    }
+  ],
+  "nccl_rows": [],
+  "created_at": "2026-08-22T17:35:12.685894Z"
+}

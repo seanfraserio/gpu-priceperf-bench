@@ -170,6 +170,7 @@ def preflight(search: Callable[[str, int], list] | None = None) -> list[str]:
                 min_reliability=MIN_RELIABILITY,
                 min_vram_gb=tier.vram_gb * 0.95,
                 min_cuda=MIN_CUDA,
+                min_disk_gb=DISK_GB * 0.95,
                 blocked=BLOCKLIST.machines(),
             )
         except LookupError:
@@ -181,6 +182,13 @@ def preflight(search: Callable[[str, int], list] | None = None) -> list[str]:
 # A third consecutive failure is a bug, not bad luck, and the remaining budget
 # would only buy the same failure eighteen more times.
 MAX_CONSECUTIVE_FAILURES = 3
+
+# What the instance is created with, and therefore what a host has to actually
+# have. Vast rents a host that advertises less without complaint, and the
+# shortfall surfaces as "No space left on device" partway through the weight
+# download — a minute of billed time in, looking like a bad host rather than a
+# floor nobody checked.
+DISK_GB = 120
 
 # Remembered between sweeps: a sweep is restarted often, and a blocklist that
 # only lives in memory forgets the bad host on every restart.
@@ -237,6 +245,7 @@ def run_one(
         min_vram_gb=tier.vram_gb * 0.95,
         blocked=BLOCKLIST.machines(),
         min_cuda=MIN_CUDA,
+        min_disk_gb=DISK_GB * 0.95,
     )
     env = build_env(
         model=model.hf_id, precision=model.precision, tp_size=1,
@@ -251,7 +260,7 @@ def run_one(
     except Exception:
         # The operator's own network is not evidence about the run.
         before = None
-    created = launch_instance(offer, env, onstart_script(), disk_gb=120)
+    created = launch_instance(offer, env, onstart_script(), disk_gb=DISK_GB)
     instance_id = created.get("new_contract")
     print(f"    instance {instance_id} @ ${offer.hourly_usd:.4f}/hr "
           f"({offer.vram_gb:.0f}GB, ttl {timers.ttl}m)")

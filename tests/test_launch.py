@@ -297,3 +297,51 @@ def test_select_offer_aborts_when_no_card_is_large_enough():
             [o for o in _mixed_a100_offers() if o.vram_gb and o.vram_gb < 76],
             "A100_SXM4", 1, max_hourly=2.00, min_vram_gb=76.0,
         )
+
+
+def _blackwell_offers():
+    """Observed live on 2026-08-22. The cheapest host advertises 39GB of disk
+    while the run asks Vast for 120GB — and Vast rents it anyway."""
+    return [
+        Offer(id=20, gpu_name="RTX PRO 6000 S", num_gpus=1, hourly_usd=1.0631,
+              vram_gb=95.0, disk_gb=39.0),
+        Offer(id=21, gpu_name="RTX PRO 6000 S", num_gpus=1, hourly_usd=1.3352,
+              vram_gb=95.0, disk_gb=119.0),
+    ]
+
+
+def test_select_offer_will_not_rent_a_host_too_small_for_the_weights():
+    """The 27B pulls tens of gigabytes of weights on top of the image. A host
+    that cannot hold them fails partway through the download, after the meter
+    has been running for a minute — the failure looks like a bad host rather
+    than an unchecked floor, which is how it went unnoticed.
+
+    The floor carries the same tolerance as the VRAM one, and for the same
+    reason: the host that served both clean runs advertises 119GB against a
+    120GB request. A floor set at the exact request would have rejected the
+    only host that worked."""
+    chosen = select_offer(
+        _blackwell_offers(), "RTX_PRO_6000_S", 1, max_hourly=3.00,
+        min_disk_gb=120.0 * 0.95,
+    )
+    assert chosen.id == 21
+    assert chosen.disk_gb == 119.0
+
+
+def test_select_offer_aborts_when_no_host_has_the_disk():
+    with pytest.raises(LookupError) as excinfo:
+        select_offer(
+            [o for o in _blackwell_offers() if o.disk_gb and o.disk_gb < 100],
+            "RTX_PRO_6000_S", 1, max_hourly=3.00, min_disk_gb=120.0 * 0.95,
+        )
+    assert "disk" in str(excinfo.value).lower()
+
+
+def test_an_offer_that_does_not_report_its_disk_is_not_assumed_to_have_any():
+    """Same rule as CUDA: the cost of guessing wrong is a paid boot that dies
+    partway through a download."""
+    silent = [Offer(id=22, gpu_name="RTX PRO 6000 S", num_gpus=1,
+                    hourly_usd=1.00, vram_gb=95.0)]
+    with pytest.raises(LookupError):
+        select_offer(silent, "RTX_PRO_6000_S", 1, max_hourly=3.00,
+                     min_disk_gb=120.0 * 0.95)

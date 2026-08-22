@@ -84,6 +84,10 @@ class Offer:
     # ones. The matrix decides what fits from the tier's declared VRAM, so
     # renting the wrong variant makes feasible() a lie.
     vram_gb: float | None = None
+    # Disk the host advertises. Vast will happily rent a 39GB host a run that
+    # asked for 120GB, and the shortfall only shows up partway through the
+    # weight download, a minute into the meter.
+    disk_gb: float | None = None
 
 
 def select_offer(
@@ -96,6 +100,7 @@ def select_offer(
     min_vram_gb: float | None = None,
     blocked: set[int] | None = None,
     min_cuda: float | None = None,
+    min_disk_gb: float | None = None,
 ) -> Offer:
     """Cheapest qualifying offer, or abort. Never silently upgrade.
 
@@ -120,6 +125,9 @@ def select_offer(
         # An offer that does not say what its driver supports is not assumed
         # to support anything: the cost of guessing wrong is a paid boot.
         and (min_cuda is None or (o.cuda_max_good or 0.0) >= min_cuda)
+        # Same rule, same reason: an offer that does not report its disk is
+        # not assumed to have one.
+        and (min_disk_gb is None or (o.disk_gb or 0.0) >= min_disk_gb)
     ]
     if not matches:
         detail = f"at or under ${max_hourly}/hr"
@@ -131,6 +139,8 @@ def select_offer(
             detail += f", >={min_reliability} reliability"
         if min_vram_gb is not None:
             detail += f", >={min_vram_gb}GB VRAM"
+        if min_disk_gb is not None:
+            detail += f", >={min_disk_gb}GB disk"
         raise LookupError(f"no {num_gpus}x {gpu_name} {detail} — not renting")
     return min(matches, key=lambda o: o.hourly_usd)
 
@@ -205,6 +215,10 @@ def search_offers(gpu_name: str, num_gpus: int) -> list[Offer]:
             cuda_max_good=(
                 float(item["cuda_max_good"])
                 if item.get("cuda_max_good") is not None else None
+            ),
+            disk_gb=(
+                float(item["disk_space"])
+                if item.get("disk_space") is not None else None
             ),
         )
         for item in json.loads(raw)
