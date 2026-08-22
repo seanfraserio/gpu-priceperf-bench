@@ -21,7 +21,7 @@ self_destruct() {
   local id="${VAST_CONTAINERLABEL#C.}"
   if [ -n "${CONTAINER_API_KEY:-}" ] && [ -n "${id:-}" ]; then
     echo "self-destruct: destroying instance ${id} via API"
-    curl -sS -X DELETE \
+    curl -sS --max-time 30 --retry 3 --retry-delay 5 -X DELETE \
       "https://console.vast.ai/api/v0/instances/${id}/" \
       -H "Authorization: Bearer ${CONTAINER_API_KEY}" \
       -H "Content-Type: application/json" \

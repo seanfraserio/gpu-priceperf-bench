@@ -93,3 +93,45 @@ def test_a_success_clears_the_failure_streak(monkeypatch):
     monkeypatch.setattr(orchestrate, "run_one", scripted)
     orchestrate.run_matrix(dry_run=False, resume=False, limit=4)
     assert attempts["n"] == 4
+
+
+def _alive_forever(monkeypatch, keys_before, keys_after):
+    """The instance never goes away on its own — which is what happened: a
+    complete result sat in the sink for fifty minutes while the container
+    failed to destroy itself and the meter ran at $0.80/hr."""
+    keys = _stub_launch(monkeypatch, keys_before, keys_after)
+    monkeypatch.setattr(orchestrate, "_instances", lambda: [{"id": 99}])
+    destroyed = []
+    monkeypatch.setattr(orchestrate.subprocess, "run",
+                        lambda *a, **k: destroyed.append(a) or None)
+    return keys, destroyed
+
+
+def test_a_complete_result_ends_the_run_without_waiting_for_the_container(monkeypatch):
+    keys, destroyed = _alive_forever(monkeypatch, {"old.json"},
+                                     {"old.json", "vllm-x-tp1-a.json"})
+    outcome = orchestrate.run_one(RUN, "ref", sink_keys=keys,
+                                  is_complete=lambda key: True)
+    assert outcome == "completed"
+    assert destroyed, "the instance must be destroyed once its result is banked"
+
+
+def test_a_partial_result_is_not_a_finished_run(monkeypatch):
+    """Every level uploads. Stopping at the first object would truncate the
+    sweep at concurrency 1."""
+    keys, destroyed = _alive_forever(monkeypatch, {"old.json"},
+                                     {"old.json", "vllm-x-tp1-a.json"})
+    monkeypatch.setattr(orchestrate, "timers_for",
+                        lambda minutes: orchestrate.Timers(1, 0, 2))
+    outcome = orchestrate.run_one(RUN, "ref", sink_keys=keys,
+                                  is_complete=lambda key: False)
+    assert outcome == "timeout"
+
+
+def test_an_uploaded_failure_log_ends_the_run_immediately(monkeypatch):
+    keys, destroyed = _alive_forever(monkeypatch, {"old.json"},
+                                     {"old.json", "fail-1-2.json"})
+    outcome = orchestrate.run_one(RUN, "ref", sink_keys=keys,
+                                  is_complete=lambda key: True)
+    assert outcome == "failed"
+    assert destroyed

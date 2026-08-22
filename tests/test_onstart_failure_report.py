@@ -91,3 +91,13 @@ def test_the_log_is_captured_from_the_top_of_the_script():
     body = open(SCRIPT).read()
     assert "tee -a" in body
     assert body.index("tee -a") < body.index("git clone")
+
+
+def test_self_destruct_cannot_hang_on_a_stalled_api_call():
+    """An L40S finished its sweep and then billed for another fifty minutes.
+    curl with no timeout is one way that happens: it blocks forever and the
+    poweroff fallback below it never runs."""
+    for script in (SCRIPT, "runner-nccl/onstart.sh"):
+        body = open(script).read()
+        block = body[body.index("# self-destruct-begin"):body.index("# self-destruct-end")]
+        assert "--max-time" in block, script

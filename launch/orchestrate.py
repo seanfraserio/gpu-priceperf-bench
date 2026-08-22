@@ -171,11 +171,25 @@ def _sink_keys() -> set[str]:
         return set(list_keys(client, SINK_URL, TOKEN_FILE.read_text().strip()))
 
 
+def _is_complete(key: str) -> bool:
+    """Whether a sink object is a finished sweep rather than a level-by-level
+    snapshot. Every level uploads, so the first object is not the answer."""
+    with httpx.Client() as client:
+        response = client.get(
+            f"{SINK_URL}/{key}",
+            headers={"Authorization": f"Bearer {TOKEN_FILE.read_text().strip()}"},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return response.json().get("partial") is False
+
+
 def run_one(
     run: Run,
     gppb_ref: str,
     ttl_minutes: int | None = None,
     sink_keys: Callable[[], set[str]] | None = None,
+    is_complete: Callable[[str], bool] | None = None,
 ) -> str:
     """Rent one instance, wait for it to finish, and report how it ended.
 
@@ -231,15 +245,47 @@ def run_one(
         return "never-started"
     print(f"    running after {(time.time() - pull_started) / 60:.1f} min pull")
 
+    # The container is supposed to destroy itself when the sweep ends. One
+    # L40S did not, and a finished result sat in the sink for fifty minutes
+    # while the meter ran. The result is the completion signal; the instance
+    # disappearing is only a fallback.
+    complete = is_complete or _is_complete
     deadline = time.time() + timers.run_timeout * 60
     while time.time() < deadline:
         time.sleep(POLL_SECONDS)
+        published = _published(before, keys, complete)
+        if published:
+            destroy()
+            return published
         if not any(i.get("id") == instance_id for i in _instances()):
             return _outcome(before, keys)
     # Past the timeout the instance is hung and its own TTL has already failed
     # to stop it, so kill it here rather than trusting that timer twice.
     destroy()
     return "timeout"
+
+
+def _published(
+    before: set[str] | None,
+    keys: Callable[[], set[str]],
+    complete: Callable[[str], bool],
+) -> str | None:
+    """The run's verdict if it has already published one, else None."""
+    if before is None:
+        return None
+    try:
+        new = keys() - before
+    except Exception:
+        return None
+    if any(key.startswith(FAILURE_PREFIX) for key in new):
+        return "failed"
+    for key in new:
+        try:
+            if complete(key):
+                return "completed"
+        except Exception:
+            continue
+    return None
 
 
 def _outcome(before: set[str] | None, keys: Callable[[], set[str]]) -> str:
