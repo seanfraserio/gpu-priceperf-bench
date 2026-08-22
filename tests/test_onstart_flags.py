@@ -143,3 +143,39 @@ def test_entrypoint_exports_the_vllm_pid():
     # The capture must follow the backgrounded server, not precede it.
     assert body.index("--port 8000 &") < body.index("VLLM_PID=$!")
     assert body.index("VLLM_PID=$!") < body.index("python3 -m gppb.run_vllm")
+
+
+def _max_num_seqs(sweep: str) -> str:
+    """Run the script's batch-cap block in isolation."""
+    body = open(SCRIPT).read()
+    snippet = body[body.index("# batch-cap-begin"):body.index("# batch-cap-end")]
+    out = subprocess.run(
+        ["bash", "-c", f'SWEEP="{sweep}"\n{snippet}\necho "$MAX_NUM_SEQS"'],
+        capture_output=True, text=True, check=True,
+    )
+    return out.stdout.strip()
+
+
+def test_the_batch_cap_is_the_top_sweep_level():
+    """vLLM's default max_num_seqs is 1024, and on the 27B hybrid an 80GB card
+    leaves only ~823 Mamba cache blocks — one per decode sequence. CUDA graph
+    capture then refuses to start and the whole rented boot is lost:
+
+        ValueError: max_num_seqs (1024) exceeds available Mamba cache blocks (823)
+
+    Nothing needs the extra headroom: the sweep never has more than its top
+    level in flight, so capping at that level changes no measurement while
+    removing the failure."""
+    assert _max_num_seqs("1,2,4,8,16,32,64,128,256,512") == "512"
+
+
+def test_the_cap_reads_the_largest_level_not_the_last_one():
+    """Sorting lexically would make 64 the cap of a sweep that reaches 512."""
+    assert _max_num_seqs("512,64,128") == "512"
+
+
+def test_the_serve_command_passes_the_cap():
+    body = open(SCRIPT).read()
+    serve = body[body.index("vllm serve"):body.index("VLLM_PID=$!")]
+    assert "--max-num-seqs" in serve
+    assert "${MAX_NUM_SEQS}" in serve

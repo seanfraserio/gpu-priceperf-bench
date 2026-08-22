@@ -172,6 +172,17 @@ case "${PRECISION}" in
 esac
 # precision-flag-end
 
+# batch-cap-begin
+# vLLM defaults max_num_seqs to 1024. The 27B is a hybrid: every decode
+# sequence holds one Mamba cache block, and an 80GB card is left with ~823 of
+# them, so CUDA graph capture refuses to start and the whole rented boot is
+# lost before a single token is served. The sweep never has more than its top
+# level in flight, so capping there removes the failure without capping any
+# batch the benchmark actually forms.
+_levels="${SWEEP:-1,2,4,8,16,32,64,128,256}"
+MAX_NUM_SEQS="$(printf '%s\n' ${_levels//,/ } | sort -n | tail -1)"
+# batch-cap-end
+
 # 4. Serve. No speculative decoding, no prefix caching, fixed KV budget.
 # VLLM_START_EPOCH lets the harness measure boot from the server's real start,
 # not from when Python happened to attach.
@@ -179,6 +190,7 @@ export VLLM_START_EPOCH=$(date +%s)
 vllm serve "${MODEL}" \
   --tensor-parallel-size "${TP_SIZE}" \
   --max-model-len "${MAX_MODEL_LEN}" \
+  --max-num-seqs "${MAX_NUM_SEQS}" \
   ${PRECISION_FLAG} \
   --no-enable-prefix-caching \
   --port 8000 &
