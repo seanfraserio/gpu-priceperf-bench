@@ -129,3 +129,49 @@ async def test_include_usage_is_requested():
         await stream_one(client, "http://t", "m", "p", Workload())
 
     assert captured["stream_options"] == {"include_usage": True}
+
+
+async def _stream(chunks: list[str]) -> RequestMetrics:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="".join(f"data: {c}\n\n" for c in chunks),
+                              headers={"Content-Type": "text/event-stream"})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        return await stream_one(client, "http://x", "m", "p", Workload())
+
+
+async def test_reasoning_tokens_count_as_output():
+    """Qwen3.8-27B is a reasoning model. OpenRouter streams its thinking in
+    delta.reasoning with delta.content empty, while self-hosted vLLM — run here
+    without a reasoning parser — delivers the same tokens inside content.
+
+    Counting only content meant the managed providers were scored on a
+    fraction of what they produced and billed for, and a request that spent its
+    whole budget reasoning was recorded as "no tokens received": a failure. At
+    concurrency 1, three of every four buy-side requests failed this way."""
+    metrics = await _stream([
+        '{"choices":[{"delta":{"content":"","reasoning":"We"}}]}',
+        '{"choices":[{"delta":{"content":"","reasoning":" need"}}]}',
+        '{"choices":[{"delta":{"content":"","reasoning":" to"}}]}',
+        "[DONE]",
+    ])
+    assert metrics.error is None
+    assert metrics.output_tokens == 3
+    assert metrics.ttft_ms > 0
+
+
+async def test_a_stream_that_mixes_reasoning_and_content_counts_both():
+    metrics = await _stream([
+        '{"choices":[{"delta":{"reasoning":"think"}}]}',
+        '{"choices":[{"delta":{"content":"answer"}}]}',
+        "[DONE]",
+    ])
+    assert metrics.output_tokens == 2
+
+
+async def test_a_stream_with_neither_is_still_a_failure():
+    """Empty deltas are keepalives, not tokens — that failure must survive."""
+    metrics = await _stream([
+        '{"choices":[{"delta":{"content":""}}]}',
+        "[DONE]",
+    ])
+    assert metrics.error == "no tokens received"

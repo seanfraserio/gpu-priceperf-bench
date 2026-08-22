@@ -98,7 +98,14 @@ async def stream_one(
                     delta = parsed["choices"][0].get("delta", {})
                 except (KeyError, IndexError, TypeError):
                     continue
-                if not delta.get("content"):
+                # A reasoning model's output arrives in whichever field the
+                # server chose to put it in. Self-hosted vLLM runs here without
+                # a reasoning parser, so its thinking lands in content; the
+                # managed providers split it into `reasoning` and leave content
+                # empty. Both are output tokens, both are billed as completion
+                # tokens, and counting only one of them scored the two paths on
+                # different halves of the same stream.
+                if not (delta.get("content") or delta.get("reasoning")):
                     continue
                 now = time.perf_counter()
                 if first_token_at is None:
