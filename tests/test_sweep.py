@@ -1,7 +1,7 @@
 import httpx
 import pytest
 from gppb.sweep import stats_from, run_sweep, run_step
-from gppb.models import Workload
+from gppb.models import StepResult, Workload
 
 
 def test_stats_from_computes_percentiles():
@@ -144,3 +144,60 @@ async def test_the_client_pool_never_caps_the_concurrency_under_test():
     assert cap is None or cap >= 256, (
         f"pool capped at {cap} while measuring concurrency 256"
     )
+
+
+async def test_sweep_stops_climbing_once_throughput_has_turned_over(monkeypatch):
+    """Past the peak there is nothing left to find, and the levels above it are
+    the most expensive to run: level 512 submits 2048 requests, and on a card
+    whose KV cache holds ~62 at a time the rest simply queue.
+
+    Two consecutive declines are required so that one noisy level cannot end
+    the sweep early."""
+    curve = {1: 100.0, 2: 200.0, 4: 400.0, 8: 800.0, 16: 780.0, 32: 700.0,
+             64: 650.0, 128: 600.0}
+    seen: list[int] = []
+
+    async def fake_step(base_url, model, concurrency, workload, api_key=None,
+                        extra_body=None, requests_per_step=0):
+        seen.append(concurrency)
+        return StepResult(
+            concurrency=concurrency, requests_completed=4, requests_failed=0,
+            wall_seconds=1.0, output_tokens_total=100,
+            output_tokens_per_sec=curve[concurrency],
+            ttft_ms=stats_from([1.0]), tpot_ms=stats_from([1.0]),
+        )
+
+    monkeypatch.setattr("gppb.sweep.run_step", fake_step)
+
+    async def on_step(steps):
+        return None
+
+    steps = await run_sweep(
+        "http://test", "m", [1, 2, 4, 8, 16, 32, 64, 128], Workload(), on_step,
+    )
+    assert seen == [1, 2, 4, 8, 16, 32], "should stop after two declines"
+    assert len(steps) == 6
+
+
+async def test_a_single_dip_does_not_end_the_sweep(monkeypatch):
+    """Run-to-run noise at one level must not be mistaken for the peak."""
+    curve = {1: 100.0, 2: 90.0, 4: 400.0, 8: 800.0}
+    seen: list[int] = []
+
+    async def fake_step(base_url, model, concurrency, workload, api_key=None,
+                        extra_body=None, requests_per_step=0):
+        seen.append(concurrency)
+        return StepResult(
+            concurrency=concurrency, requests_completed=4, requests_failed=0,
+            wall_seconds=1.0, output_tokens_total=100,
+            output_tokens_per_sec=curve[concurrency],
+            ttft_ms=stats_from([1.0]), tpot_ms=stats_from([1.0]),
+        )
+
+    monkeypatch.setattr("gppb.sweep.run_step", fake_step)
+
+    async def on_step(steps):
+        return None
+
+    await run_sweep("http://test", "m", [1, 2, 4, 8], Workload(), on_step)
+    assert seen == [1, 2, 4, 8]

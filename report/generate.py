@@ -74,23 +74,29 @@ def cost_rows(results: list[BenchResult]) -> list[CostRow]:
 
 def median_rows(rows: list[CostRow]) -> list[CostRow]:
     """Collapse the 3 runs per config to their median."""
-    # Grouped by sweep shape as well as label: a run preempted at concurrency 4
-    # and a run that reached 256 are not repeats of each other, and averaging
-    # them would quietly move the headline number.
-    grouped: dict[tuple[str, tuple[int, ...]], list[CostRow]] = defaultdict(list)
+    # Grouped by whether the run found its ceiling, not by the exact levels it
+    # swept. What makes two runs incomparable is that one is a measurement and
+    # the other an upper bound — and since the sweep stops two levels past its
+    # own peak, repeat runs of one config legitimately stop at different
+    # concurrencies. Keying on the level list would split those and quietly
+    # produce a single-sample "median" of three runs.
+    grouped: dict[tuple[str, bool], list[CostRow]] = defaultdict(list)
     for row in rows:
-        grouped[(row.label, row.levels)].append(row)
+        grouped[(row.label, row.saturated)].append(row)
 
     collapsed = []
-    for (label, levels), group in grouped.items():
+    for (label, is_saturated), group in grouped.items():
         # An upper bound is always marked, whether or not a fuller run exists
-        # to compare it against.
-        if not group[0].saturated and levels:
+        # to compare it against. The ceiling quoted is the lowest any run in
+        # the group reached, since that is the weakest claim they jointly
+        # support.
+        levels = min((r.levels for r in group if r.levels), default=())
+        if not is_saturated and levels:
             label = f"{label} (\u2264{levels[-1]})"
         collapsed.append(CostRow(
             label=label,
             levels=levels,
-            saturated=group[0].saturated,
+            saturated=is_saturated,
             usd_per_mtok=statistics.median(r.usd_per_mtok for r in group),
             tokens_per_sec=statistics.median(r.tokens_per_sec for r in group),
             coldstart_usd=(

@@ -13,6 +13,9 @@ from gppb.client import stream_one
 from gppb.corpus import build_corpus
 from gppb.models import Stats, StepResult, Workload
 
+# Consecutive falling levels that count as "the peak is behind us".
+MAX_CONSECUTIVE_DECLINES = 2
+
 
 def stats_from(values: list[float]) -> Stats:
     if not values:
@@ -93,6 +96,7 @@ async def run_sweep(
     """`before_step` runs ahead of a level's requests — budget guards belong
     there, where refusing still prevents the spend."""
     steps: list[StepResult] = []
+    declines = 0
     for level in levels:
         if before_step is not None:
             await before_step(level)
@@ -100,4 +104,16 @@ async def run_sweep(
             await run_step(base_url, model, level, workload, api_key, extra_body)
         )
         await on_step(steps)
+
+        # Past the peak there is nothing left to find, and the levels above it
+        # cost the most: level 512 submits 2048 requests, and on a card whose
+        # KV cache holds ~62 at a time the rest only queue. Two consecutive
+        # declines are required so one noisy level cannot end the sweep early.
+        if len(steps) >= 2:
+            if steps[-1].output_tokens_per_sec < steps[-2].output_tokens_per_sec:
+                declines += 1
+                if declines >= MAX_CONSECUTIVE_DECLINES:
+                    break
+            else:
+                declines = 0
     return steps

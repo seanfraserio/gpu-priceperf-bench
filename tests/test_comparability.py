@@ -81,3 +81,27 @@ def test_repeat_runs_of_the_same_sweep_still_collapse_to_one_row():
         _result("NVIDIA GeForce RTX 5090", FULL, f"vllm-{i}") for i in range(3)
     ]))
     assert len(rows) == 1
+
+
+def test_saturated_runs_collapse_even_when_they_stopped_at_different_levels():
+    """Adaptive stopping ends each run two levels past its own peak, so repeat
+    runs of one config legitimately stop at different concurrencies. Grouping
+    on the exact level list would split them and quietly produce a
+    single-sample 'median' of three runs."""
+    stopped_early = [_step(1, 94.0), _step(8, 1568.0), _step(16, 1400.0),
+                     _step(32, 1300.0)]
+    stopped_later = [_step(1, 94.0), _step(8, 1560.0), _step(16, 1500.0),
+                     _step(32, 1450.0), _step(64, 1300.0)]
+    rows = median_rows(cost_rows([
+        _result("NVIDIA GeForce RTX 5090", stopped_early, "vllm-a"),
+        _result("NVIDIA GeForce RTX 5090", stopped_later, "vllm-b"),
+    ]))
+    assert len(rows) == 1, "two saturated runs of one config are one row"
+
+
+def test_a_saturated_run_is_still_kept_apart_from_an_upper_bound():
+    rows = median_rows(cost_rows([
+        _result("NVIDIA GeForce RTX 5090", FULL, "vllm-a"),
+        _result("NVIDIA GeForce RTX 5090", SHORT, "vllm-b"),
+    ]))
+    assert len(rows) == 2
