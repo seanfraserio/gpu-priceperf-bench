@@ -11,11 +11,11 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Callable, NamedTuple
 
 from launch.matrix import (
-    MODELS, TIERS, BudgetExhausted, BudgetGate, Run, build_matrix,
-    estimate_run_usd,
+    BASE_RUN_MINUTES, MODELS, TIERS, BudgetExhausted, BudgetGate, Run,
+    build_matrix, estimate_run_usd,
 )
 from launch.coverage import missing
 from launch.reap import reap
@@ -51,6 +51,26 @@ MIN_RELIABILITY = 0.97
 CONTAINER_TTL_MINUTES = 60
 RUN_TIMEOUT_MINUTES = 75
 CONTAINER_BACKSTOP_MINUTES = 90
+
+# Those three are the anchor's timings, and run 2 completed a full nine-level
+# sweep inside them. They do not generalise: the headline model is a 55.6GB
+# download against the anchor's 17GB, on top of a slower fp8 load and a hybrid
+# KV cache. A fixed TTL would kill it mid-sweep, and because sync discards
+# partial results that run would cost money and yield nothing. So the timers
+# derive from how long the run is expected to take, keeping the ordering.
+TTL_SAFETY_FACTOR = CONTAINER_TTL_MINUTES / BASE_RUN_MINUTES
+
+
+class Timers(NamedTuple):
+    ttl: int
+    run_timeout: int
+    backstop: int
+
+
+def timers_for(expected_minutes: float) -> Timers:
+    """Stop-clocks sized to the run, preserving TTL < timeout < backstop."""
+    ttl = max(CONTAINER_TTL_MINUTES, round(expected_minutes * TTL_SAFETY_FACTOR))
+    return Timers(ttl=ttl, run_timeout=round(ttl * 1.25), backstop=round(ttl * 1.5))
 
 # Pull plus scheduling, billed but not part of the run.
 #
@@ -105,13 +125,18 @@ def _instances() -> list[dict]:
     return json.loads(raw)
 
 
-def run_one(run: Run, gppb_ref: str, ttl_minutes: int = CONTAINER_TTL_MINUTES) -> str:
+def run_one(run: Run, gppb_ref: str, ttl_minutes: int | None = None) -> str:
     """Rent one instance, wait for it to finish, and report how it ended.
 
     The instance destroys itself when the sweep completes, so its disappearance
     is the completion signal."""
     model = MODELS[run.model_key]
     tier = TIERS[run.tier_key]
+    # Sized to this model, not to the anchor: the 27B downloads 55.6GB before
+    # it serves a token.
+    timers = timers_for(BASE_RUN_MINUTES * model.runtime_multiplier)
+    if ttl_minutes is not None:
+        timers = timers_for(ttl_minutes / TTL_SAFETY_FACTOR)
 
     offer = select_offer(
         search_offers(tier.key, 1), tier.key, 1,
@@ -126,13 +151,14 @@ def run_one(run: Run, gppb_ref: str, ttl_minutes: int = CONTAINER_TTL_MINUTES) -
     env = build_env(
         model=model.hf_id, precision=model.precision, tp_size=1,
         run_index=run.run_index, hourly_usd=round(offer.hourly_usd, 4),
-        ttl_minutes=ttl_minutes, sink_url=SINK_URL, gppb_ref=gppb_ref,
+        ttl_minutes=timers.ttl, sink_url=SINK_URL, gppb_ref=gppb_ref,
         sink_token=TOKEN_FILE.read_text().strip(),
-        backstop_minutes=CONTAINER_BACKSTOP_MINUTES,
+        backstop_minutes=timers.backstop,
     )
     created = launch_instance(offer, env, onstart_script(), disk_gb=120)
     instance_id = created.get("new_contract")
-    print(f"    instance {instance_id} @ ${offer.hourly_usd:.4f}/hr")
+    print(f"    instance {instance_id} @ ${offer.hourly_usd:.4f}/hr "
+          f"({offer.vram_gb:.0f}GB, ttl {timers.ttl}m)")
 
     def destroy() -> None:
         subprocess.run(
@@ -148,7 +174,7 @@ def run_one(run: Run, gppb_ref: str, ttl_minutes: int = CONTAINER_TTL_MINUTES) -
         return "never-started"
     print(f"    running after {(time.time() - pull_started) / 60:.1f} min pull")
 
-    deadline = time.time() + RUN_TIMEOUT_MINUTES * 60
+    deadline = time.time() + timers.run_timeout * 60
     while time.time() < deadline:
         time.sleep(POLL_SECONDS)
         if not any(i.get("id") == instance_id for i in _instances()):

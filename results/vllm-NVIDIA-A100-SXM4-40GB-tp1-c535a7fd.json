@@ -1,0 +1,222 @@
+{
+  "schema_version": "1",
+  "run_id": "vllm-NVIDIA-A100-SXM4-40GB-tp1-c535a7fd",
+  "valid": true,
+  "invalid_reason": null,
+  "partial": false,
+  "target": {
+    "kind": "vllm",
+    "model": "Qwen/Qwen3-8B",
+    "precision": "bfloat16",
+    "tp_size": 1,
+    "provider": null
+  },
+  "hardware": {
+    "gpu_name": "NVIDIA A100-SXM4-40GB",
+    "gpu_count": 1,
+    "driver_version": null,
+    "vllm_version": "0.27.1",
+    "peak_vram_bytes": 39393951744
+  },
+  "pricing": {
+    "hourly_rate_usd": 0.5209,
+    "input_per_mtok_usd": null,
+    "output_per_mtok_usd": null
+  },
+  "timings": {
+    "download_seconds": 14.0,
+    "boot_seconds": 119.84240341186523
+  },
+  "workload": {
+    "input_tokens": 1024,
+    "output_tokens": 256,
+    "temperature": 0.0,
+    "ignore_eos": true,
+    "max_model_len": 32768
+  },
+  "run_index": 1,
+  "steps": [
+    {
+      "concurrency": 1,
+      "requests_completed": 4,
+      "requests_failed": 0,
+      "wall_seconds": 13.839237056206912,
+      "output_tokens_total": 1024,
+      "output_tokens_per_sec": 73.99251821766684,
+      "ttft_ms": {
+        "p50": 85.97220852971077,
+        "p90": 124.32756600901484,
+        "min": 85.10205103084445,
+        "max": 124.32756600901484
+      },
+      "tpot_ms": {
+        "p50": 13.192696107423627,
+        "p90": 13.198721387843584,
+        "min": 13.18543545865253,
+        "max": 13.198721387843584
+      }
+    },
+    {
+      "concurrency": 2,
+      "requests_completed": 8,
+      "requests_failed": 0,
+      "wall_seconds": 14.145795563003048,
+      "output_tokens_total": 2048,
+      "output_tokens_per_sec": 144.7780007054778,
+      "ttft_ms": {
+        "p50": 122.67314898781478,
+        "p90": 161.87123791314662,
+        "min": 85.22816584445536,
+        "max": 161.87123791314662
+      },
+      "tpot_ms": {
+        "p50": 13.37803195130226,
+        "p90": 13.504913471200886,
+        "min": 13.252802545606505,
+        "max": 13.504913471200886
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests_completed": 16,
+      "requests_failed": 0,
+      "wall_seconds": 14.953439621021971,
+      "output_tokens_total": 4096,
+      "output_tokens_per_sec": 273.9169116810909,
+      "ttft_ms": {
+        "p50": 223.2406318653375,
+        "p90": 301.6609391197562,
+        "min": 91.43201005645096,
+        "max": 301.7482701689005
+      },
+      "tpot_ms": {
+        "p50": 13.759196261126622,
+        "p90": 14.243250627837638,
+        "min": 13.496119658663577,
+        "max": 14.245774815151213
+      }
+    },
+    {
+      "concurrency": 8,
+      "requests_completed": 32,
+      "requests_failed": 0,
+      "wall_seconds": 16.525121998041868,
+      "output_tokens_total": 8192,
+      "output_tokens_per_sec": 495.7300769683095,
+      "ttft_ms": {
+        "p50": 347.23700035829097,
+        "p90": 496.83445296250284,
+        "min": 95.25319584645331,
+        "max": 577.4716550949961
+      },
+      "tpot_ms": {
+        "p50": 14.777030168539461,
+        "p90": 15.696498126193296,
+        "min": 14.017802184703303,
+        "max": 15.743576866738936
+      }
+    },
+    {
+      "concurrency": 16,
+      "requests_completed": 64,
+      "requests_failed": 0,
+      "wall_seconds": 19.87347227311693,
+      "output_tokens_total": 16384,
+      "output_tokens_per_sec": 824.415571412894,
+      "ttft_ms": {
+        "p50": 416.4170834701508,
+        "p90": 777.628414100036,
+        "min": 105.30001414008439,
+        "max": 1158.8294580578804
+      },
+      "tpot_ms": {
+        "p50": 17.529677886369768,
+        "p90": 18.659424126221268,
+        "min": 15.203453004177586,
+        "max": 18.940553698213954
+      }
+    },
+    {
+      "concurrency": 32,
+      "requests_completed": 128,
+      "requests_failed": 0,
+      "wall_seconds": 27.529035430168733,
+      "output_tokens_total": 32768,
+      "output_tokens_per_sec": 1190.3068701088578,
+      "ttft_ms": {
+        "p50": 516.6795215336606,
+        "p90": 1497.448756126687,
+        "min": 120.47442118637264,
+        "max": 2334.398163948208
+      },
+      "tpot_ms": {
+        "p50": 24.849233911920557,
+        "p90": 25.50239398819851,
+        "min": 18.265518921372646,
+        "max": 26.353900587441874
+      }
+    },
+    {
+      "concurrency": 64,
+      "requests_completed": 256,
+      "requests_failed": 0,
+      "wall_seconds": 41.46807955484837,
+      "output_tokens_total": 65536,
+      "output_tokens_per_sec": 1580.3963121397467,
+      "ttft_ms": {
+        "p50": 624.8389279935509,
+        "p90": 2980.232651112601,
+        "min": 145.75625793077052,
+        "max": 4896.312540164217
+      },
+      "tpot_ms": {
+        "p50": 38.28025529590235,
+        "p90": 38.45757692960986,
+        "min": 21.70419412500718,
+        "max": 40.05912321199681
+      }
+    },
+    {
+      "concurrency": 128,
+      "requests_completed": 512,
+      "requests_failed": 0,
+      "wall_seconds": 80.81478901603259,
+      "output_tokens_total": 131072,
+      "output_tokens_per_sec": 1621.8813610216446,
+      "ttft_ms": {
+        "p50": 3365.416546468623,
+        "p90": 9303.56176593341,
+        "min": 384.7382029052824,
+        "max": 16863.911275053397
+      },
+      "tpot_ms": {
+        "p50": 57.67326032943731,
+        "p90": 57.820841501119965,
+        "min": 15.915555776297754,
+        "max": 59.46648720852738
+      }
+    },
+    {
+      "concurrency": 256,
+      "requests_completed": 1024,
+      "requests_failed": 0,
+      "wall_seconds": 159.00184475281276,
+      "output_tokens_total": 262144,
+      "output_tokens_per_sec": 1648.6852741081964,
+      "ttft_ms": {
+        "p50": 21606.918409001082,
+        "p90": 27501.83905195445,
+        "min": 748.1020260602236,
+        "max": 34589.28092406131
+      },
+      "tpot_ms": {
+        "p50": 57.238808484273214,
+        "p90": 57.35696230960243,
+        "min": 17.287938854675375,
+        "max": 59.22574205506666
+      }
+    }
+  ],
+  "nccl_rows": [],
+  "created_at": "2026-08-22T00:26:14.913035Z"
+}

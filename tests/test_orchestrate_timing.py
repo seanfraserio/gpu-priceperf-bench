@@ -119,3 +119,29 @@ def test_resume_runs_what_coverage_says_is_owed(tmp_path, monkeypatch):
     fives = [r for r in owed if r.tier_key == "RTX_5090"]
     assert len(fives) == 2, "one 5090 sample banked, two still owed"
     assert len(owed) == len(orch.build_matrix()) - 1
+
+
+def test_timers_scale_with_the_expected_run_length():
+    """The headline model is a 55.6GB download against the anchor's 17GB, on
+    top of a slower fp8 load and a hybrid KV cache. A fixed 60-minute TTL
+    would kill it mid-sweep, and since sync discards partial results the run
+    would cost money and yield nothing."""
+    short = orch.timers_for(25.0)
+    long = orch.timers_for(40.0)
+    assert long.ttl > short.ttl
+    assert long.run_timeout > short.run_timeout
+
+
+def test_the_ordering_invariant_holds_at_every_run_length():
+    """Whatever the scaling produces, the instance must still stop itself
+    before the orchestrator gives up, and the container backstop must outlive
+    the orchestrator."""
+    for minutes in (10.0, 25.0, 40.0, 90.0):
+        t = orch.timers_for(minutes)
+        assert t.ttl < t.run_timeout < t.backstop
+
+
+def test_the_anchor_keeps_the_timings_that_are_known_to_work():
+    """Run 2 completed a full nine-level sweep inside these."""
+    t = orch.timers_for(25.0)
+    assert (t.ttl, t.run_timeout, t.backstop) == (60, 75, 90)
