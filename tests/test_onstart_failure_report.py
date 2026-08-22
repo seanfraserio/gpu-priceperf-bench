@@ -129,3 +129,21 @@ def test_the_upload_identifies_itself_with_a_real_user_agent():
     block = body[body.index("# failure-report-begin"):body.index("# failure-report-end")]
     assert "User-Agent" in block, "an unset agent is rejected before it is read"
     assert "urllib" not in block.split("User-Agent")[1].split("\n")[0]
+
+
+def test_the_log_path_reaches_the_child_process():
+    """GPPB_LOG_PATH was a plain shell variable, so the uploader — a separate
+    python3 — read an empty string and reported 'log unavailable'. The report
+    arrived carrying nothing."""
+    body = open(SCRIPT).read()
+    block = body[body.index("# failure-report-begin"):body.index("# failure-report-end")]
+    assert "export GPPB_LOG_PATH" in block
+
+
+def test_the_uploader_tries_more_than_one_log_location():
+    """The path vast writes is a convention, not a promise. A report that says
+    only 'no such file' is the same as no report."""
+    body = open(SCRIPT).read()
+    block = body[body.index("# failure-report-begin"):body.index("# failure-report-end")]
+    assert block.count("/var/log/") >= 1
+    assert "candidates" in block

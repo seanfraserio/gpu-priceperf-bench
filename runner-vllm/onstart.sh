@@ -77,6 +77,7 @@ GPPB_REF="${GPPB_REF:-main}"
 # because the log dies with the container. A non-zero exit publishes it.
 report_failure() {
   export GPPB_EXIT_CODE="$1"
+  export GPPB_LOG_PATH
   export GPPB_FAIL_KEY="fail-$(date +%s)-$$.json"
   if [ -z "${SINK_URL:-}" ] || [ -z "${SINK_TOKEN:-}" ]; then
     echo "failure report: no sink configured"
@@ -86,14 +87,24 @@ report_failure() {
   # world-readable through ps.
   python3 -c '
 import json, os, urllib.request
-path = os.environ.get("GPPB_LOG_PATH", "")
-try:
-    with open(path, "rb") as fh:
-        fh.seek(0, 2)
-        fh.seek(max(0, fh.tell() - 64000))
-        tail = fh.read().decode("utf-8", "replace")
-except OSError as exc:
-    tail = "log unavailable: %s" % exc
+# The path vast writes is a convention, not a promise, so try the ones it
+# is known to use before giving up. A report that says only "no such file"
+# is worth no more than no report.
+candidates = [os.environ.get("GPPB_LOG_PATH", ""),
+              "/var/log/onstart.log", "/var/log/onstart_bash.log",
+              "/var/log/portal/onstart.log"]
+tail = "log unavailable; looked in %s" % ", ".join(c for c in candidates if c)
+for path in candidates:
+    if not path:
+        continue
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, 2)
+            fh.seek(max(0, fh.tell() - 64000))
+            tail = "%s:\n%s" % (path, fh.read().decode("utf-8", "replace"))
+        break
+    except OSError:
+        continue
 body = json.dumps({
     "kind": "failure",
     "exit_code": int(os.environ["GPPB_EXIT_CODE"]),
