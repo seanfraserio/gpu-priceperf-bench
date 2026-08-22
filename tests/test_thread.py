@@ -118,3 +118,42 @@ def test_a_thread_with_no_saturated_run_refuses_to_render():
     """Every run stopped while still climbing: there is no ceiling to quote."""
     with pytest.raises(ValueError):
         build_thread([_short("RTX 5090", 0.35, 325.0)])
+
+
+def _two_model_results():
+    """Six tiers across two models — the shape the real results directory has."""
+    from gppb.models import Target
+    out = []
+    for gpu, model, tps in [
+        ("NVIDIA GeForce RTX 5090", "Qwen/Qwen3-8B", 1563.0),
+        ("NVIDIA H100 80GB HBM3", "Qwen/Qwen3-8B", 5313.0),
+        ("NVIDIA A100-SXM4-80GB", "Qwen/Qwen3-8B", 1890.0),
+        ("NVIDIA L40S", "Qwen/Qwen3-8B", 1273.0),
+        ("NVIDIA H100 80GB HBM3", "Qwen/Qwen3.8-27B", 2031.0),
+        ("NVIDIA A100-SXM4-80GB", "Qwen/Qwen3.8-27B", 515.0),
+    ]:
+        r = _selfhost(gpu, 1.0, tps)
+        r.target = Target(kind="vllm", model=model, precision="fp8", tp_size=1)
+        out.append(r)
+    return out
+
+
+def test_the_thread_survives_a_matrix_with_two_models():
+    """Naming the model in each row pushed the table post to 322 characters and
+    it stopped rendering at all. The labels have to be compact enough that the
+    real matrix fits the platform limit."""
+    from report.thread import build_thread, MAX_POST_CHARS
+
+    for post in build_thread(_two_model_results()):
+        assert len(post.text) <= MAX_POST_CHARS, post.text
+
+
+def test_the_table_does_not_claim_one_model_for_rows_of_two():
+    """The header read "$/1M output tokens, Qwen/Qwen3.8-27B:" above rows that
+    were mostly 8B — true of the first result, false of the table."""
+    from report.thread import build_thread
+
+    table = build_thread(_two_model_results())[1].text
+    header = table.splitlines()[0]
+    assert "Qwen3.8-27B" not in header, header
+    assert "Qwen3-8B" in table and "Qwen3.8-27B" in table

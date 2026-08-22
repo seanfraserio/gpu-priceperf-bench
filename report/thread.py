@@ -39,6 +39,17 @@ class Post:
         return text
 
 
+def compact(label: str) -> str:
+    """A row label short enough for a 280-character post.
+
+    The full label carries the vendor prefix and a TP1 that is true of every
+    single-GPU row; neither distinguishes anything, and with the model name now
+    in the label the table post ran 42 characters over the limit and stopped
+    rendering. Multi-GPU rows keep their TP marker, since there it is the point.
+    """
+    return label.replace("NVIDIA ", "").replace(" TP1 ", " ")
+
+
 def _split(rows: list[CostRow]) -> tuple[list[CostRow], list[CostRow]]:
     """Self-hosted rows carry a cold-start cost; API rows cannot."""
     selfhost = [r for r in rows if r.coldstart_usd is not None]
@@ -68,23 +79,26 @@ def build_thread(results: list[BenchResult]) -> list[Post]:
     head.text = (
         f"I rented GPUs and measured what it actually costs to serve "
         f"{head.borrow(model)}.\n\n"
-        f"Cheapest: {head.borrow(best.label)} at "
+        f"Cheapest: {head.borrow(compact(best.label))} at "
         f"${head.num(best.usd_per_mtok, 4)} per 1M output tokens"
     )
     if len(rows) > 1:
         dearest = rows[-1]
         ratio = dearest.usd_per_mtok / best.usd_per_mtok if best.usd_per_mtok else 0.0
         head.text += (
-            f".\nDearest: {head.borrow(dearest.label)}, "
+            f".\nDearest: {head.borrow(compact(dearest.label))}, "
             f"{head.num(ratio, 1)}x more."
         )
     posts.append(head)
 
     table = Post()
-    lines = [f"$/1M output tokens, {table.borrow(model)}:"]
+    # Deliberately not "$/1M, <model>:". The rows span every model measured,
+    # and the header used to name whichever one happened to be first in the
+    # results directory — a caption that was false for most of the table.
+    lines = ["$/1M output tokens, cheapest first:"]
     for row in rows[:5]:
         lines.append(
-            f"{table.borrow(row.label)} — ${table.num(row.usd_per_mtok, 4)} "
+            f"{table.borrow(compact(row.label))} — ${table.num(row.usd_per_mtok, 4)} "
             f"@ {table.num(row.tokens_per_sec, 0)} tok/s"
         )
     table.text = "\n".join(lines)
@@ -96,7 +110,7 @@ def build_thread(results: list[BenchResult]) -> list[Post]:
         cold.text = (
             "Self-hosting has a cost the API bill never shows: you pay for the "
             "boot.\n\n"
-            f"{cold.borrow(cheapest_cold.label)} costs "
+            f"{cold.borrow(compact(cheapest_cold.label))} costs "
             f"${cold.num(cheapest_cold.coldstart_usd or 0.0, 4)} every cold "
             "start, before a single token is served."
         )
@@ -116,9 +130,9 @@ def build_thread(results: list[BenchResult]) -> list[Post]:
         )
         verdict.text = (
             f"Self-host vs managed API, same model, same workload:\n\n"
-            f"{verdict.borrow(winner.label)} "
+            f"{verdict.borrow(compact(winner.label))} "
             f"${verdict.num(winner.usd_per_mtok, 4)}\n"
-            f"{verdict.borrow(loser.label)} "
+            f"{verdict.borrow(compact(loser.label))} "
             f"${verdict.num(loser.usd_per_mtok, 4)}\n\n"
             f"{verdict.num(gap, 1)}x apart — and that ignores the hours you "
             "spend running it."
