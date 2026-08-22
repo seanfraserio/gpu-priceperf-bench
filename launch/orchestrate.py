@@ -13,12 +13,15 @@ import time
 from pathlib import Path
 from typing import Callable, NamedTuple
 
+import httpx
+
 from launch.matrix import (
     BASE_RUN_MINUTES, MODELS, TIERS, BudgetExhausted, BudgetGate, Run,
     build_matrix, estimate_run_usd,
 )
 from launch.coverage import missing
 from launch.reap import reap
+from launch.sync import FAILURE_PREFIX
 from launch.vast import (
     build_env, launch_instance, onstart_script, search_offers, select_offer,
     vastai_bin,
@@ -155,11 +158,29 @@ def preflight(search: Callable[[str, int], list] | None = None) -> list[str]:
     return blocked
 
 
-def run_one(run: Run, gppb_ref: str, ttl_minutes: int | None = None) -> str:
+# Every run in the matrix executes the same harness on the same kind of host.
+# A third consecutive failure is a bug, not bad luck, and the remaining budget
+# would only buy the same failure eighteen more times.
+MAX_CONSECUTIVE_FAILURES = 3
+
+
+def _sink_keys() -> set[str]:
+    from launch.sync import list_keys
+
+    with httpx.Client() as client:
+        return set(list_keys(client, SINK_URL, TOKEN_FILE.read_text().strip()))
+
+
+def run_one(
+    run: Run,
+    gppb_ref: str,
+    ttl_minutes: int | None = None,
+    sink_keys: Callable[[], set[str]] | None = None,
+) -> str:
     """Rent one instance, wait for it to finish, and report how it ended.
 
-    The instance destroys itself when the sweep completes, so its disappearance
-    is the completion signal."""
+    The instance destroys itself either way, so its disappearance says nothing
+    about whether the run worked. What the run published to the sink does."""
     model = MODELS[run.model_key]
     tier = TIERS[run.tier_key]
     # Sized to this model, not to the anchor: the 27B downloads 55.6GB before
@@ -185,6 +206,12 @@ def run_one(run: Run, gppb_ref: str, ttl_minutes: int | None = None) -> str:
         sink_token=TOKEN_FILE.read_text().strip(),
         backstop_minutes=timers.backstop,
     )
+    keys = sink_keys or _sink_keys
+    try:
+        before = keys()
+    except Exception:
+        # The operator's own network is not evidence about the run.
+        before = None
     created = launch_instance(offer, env, onstart_script(), disk_gb=120)
     instance_id = created.get("new_contract")
     print(f"    instance {instance_id} @ ${offer.hourly_usd:.4f}/hr "
@@ -208,11 +235,24 @@ def run_one(run: Run, gppb_ref: str, ttl_minutes: int | None = None) -> str:
     while time.time() < deadline:
         time.sleep(POLL_SECONDS)
         if not any(i.get("id") == instance_id for i in _instances()):
-            return "completed"
+            return _outcome(before, keys)
     # Past the timeout the instance is hung and its own TTL has already failed
     # to stop it, so kill it here rather than trusting that timer twice.
     destroy()
     return "timeout"
+
+
+def _outcome(before: set[str] | None, keys: Callable[[], set[str]]) -> str:
+    """What the instance left behind, once it is gone."""
+    if before is None:
+        return "completed"
+    try:
+        new = keys() - before
+    except Exception:
+        return "completed"
+    if any(key.startswith(FAILURE_PREFIX) for key in new):
+        return "failed"
+    return "completed" if new else "no-result"
 
 
 def run_matrix(
@@ -258,6 +298,7 @@ def run_matrix(
     print(f"credit ${gate.remaining:.2f}, reserve ${reserve_usd:.2f}")
 
     done: list[Run] = []
+    streak = 0
     for position, run in enumerate(planned, start=1):
         model, tier = MODELS[run.model_key], TIERS[run.tier_key]
         estimate = estimate_run_usd(model, tier)
@@ -271,6 +312,11 @@ def run_matrix(
         outcome = run_one(run, gppb_ref)
         print(f"    {outcome}")
         done.append(run)
+        streak = 0 if outcome == "completed" else streak + 1
+        if streak >= MAX_CONSECUTIVE_FAILURES:
+            print(f"stopping: {streak} runs in a row published nothing — "
+                  f"read them with `python -m launch.sync --failures`")
+            break
 
     leftover = reap()
     if leftover:
