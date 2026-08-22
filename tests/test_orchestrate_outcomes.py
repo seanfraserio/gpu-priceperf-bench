@@ -44,7 +44,8 @@ def test_an_instance_that_published_nothing_is_not_completed(monkeypatch):
 
 def test_a_published_result_is_what_completed_means(monkeypatch):
     keys = _stub_launch(monkeypatch, {"old.json"}, {"old.json", "vllm-x-tp1-a.json"})
-    assert orchestrate.run_one(RUN, "ref", sink_keys=keys) == "completed"
+    assert orchestrate.run_one(RUN, "ref", sink_keys=keys,
+                               is_complete=lambda key: True) == "completed"
 
 
 def test_an_uploaded_failure_log_is_reported_as_a_failure(monkeypatch):
@@ -135,3 +136,14 @@ def test_an_uploaded_failure_log_ends_the_run_immediately(monkeypatch):
                                   is_complete=lambda key: True)
     assert outcome == "failed"
     assert destroyed
+
+
+def test_a_partial_upload_left_by_a_dead_instance_is_not_a_success(monkeypatch):
+    """A run that died at level 256 leaves eight levels in the sink. Calling
+    that 'completed' resets the failure streak, which is the guard that stops
+    a systemic failure from spending the rest of the budget."""
+    keys = _stub_launch(monkeypatch, {"old.json"},
+                        {"old.json", "vllm-x-tp1-a.json"})
+    outcome = orchestrate.run_one(RUN, "ref", sink_keys=keys,
+                                  is_complete=lambda key: False)
+    assert outcome == "no-result"

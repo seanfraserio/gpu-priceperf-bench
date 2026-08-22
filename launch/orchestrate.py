@@ -258,7 +258,7 @@ def run_one(
             destroy()
             return published
         if not any(i.get("id") == instance_id for i in _instances()):
-            return _outcome(before, keys)
+            return _outcome(before, keys, complete)
     # Past the timeout the instance is hung and its own TTL has already failed
     # to stop it, so kill it here rather than trusting that timer twice.
     destroy()
@@ -288,17 +288,27 @@ def _published(
     return None
 
 
-def _outcome(before: set[str] | None, keys: Callable[[], set[str]]) -> str:
-    """What the instance left behind, once it is gone."""
+def _outcome(
+    before: set[str] | None,
+    keys: Callable[[], set[str]],
+    complete: Callable[[str], bool],
+) -> str:
+    """What the instance left behind, once it is gone.
+
+    A run that died at level 256 leaves eight levels in the sink. That is not
+    a success — and calling it one would clear the failure streak that stops a
+    systemic failure from spending the rest of the budget."""
     if before is None:
         return "completed"
+    published = _published(before, keys, complete)
+    if published:
+        return published
     try:
-        new = keys() - before
+        if keys() - before:
+            return "no-result"
     except Exception:
         return "completed"
-    if any(key.startswith(FAILURE_PREFIX) for key in new):
-        return "failed"
-    return "completed" if new else "no-result"
+    return "no-result"
 
 
 def run_matrix(
