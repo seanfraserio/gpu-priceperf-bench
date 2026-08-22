@@ -1,3 +1,4 @@
+import json
 import httpx
 import pytest
 from gppb.client import stream_one, RequestMetrics
@@ -73,3 +74,58 @@ async def test_single_token_response_has_zero_tpot():
     async with httpx.AsyncClient(transport=transport) as client:
         m = await stream_one(client, "http://x", "m", "prompt", Workload())
     assert m.tpot_ms == 0.0
+
+
+async def test_token_count_prefers_the_servers_usage_report():
+    """Counting SSE chunks assumes one token per chunk. That holds for vLLM —
+    verified against real runs, 4 requests x 256 = exactly 1024 — but nothing
+    obliges a managed provider to stream one token at a time. A provider
+    batching four tokens per chunk would have its throughput understated
+    fourfold, biasing the comparison towards self-hosting."""
+    chunks = [
+        'data: {"choices":[{"delta":{"content":"alpha beta gamma delta"}}]}',
+        'data: {"choices":[],"usage":{"completion_tokens":4}}',
+        "data: [DONE]",
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="\n".join(chunks) + "\n")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        m = await stream_one(client, "http://t", "m", "p", Workload())
+
+    assert m.output_tokens == 4, "must trust the server's own count"
+    assert m.counted_from == "usage"
+
+
+async def test_falls_back_to_chunk_counting_when_usage_is_absent():
+    """Not every provider reports usage on a stream. Falling back is right;
+    doing so silently is not, so the result records which count it used."""
+    chunks = [
+        'data: {"choices":[{"delta":{"content":"a"}}]}',
+        'data: {"choices":[{"delta":{"content":"b"}}]}',
+        "data: [DONE]",
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="\n".join(chunks) + "\n")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        m = await stream_one(client, "http://t", "m", "p", Workload())
+
+    assert m.output_tokens == 2
+    assert m.counted_from == "chunks"
+
+
+async def test_include_usage_is_requested():
+    """The authoritative count only arrives if it is asked for."""
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, text="data: [DONE]\n\n")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        await stream_one(client, "http://t", "m", "p", Workload())
+
+    assert captured["stream_options"] == {"include_usage": True}

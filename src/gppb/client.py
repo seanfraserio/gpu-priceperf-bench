@@ -18,6 +18,11 @@ class RequestMetrics:
     output_tokens: int
     total_ms: float
     error: str | None = None
+    # "usage" when the server reported the count itself, "chunks" when it was
+    # inferred from the stream. Recorded rather than assumed: counting chunks
+    # assumes one token per chunk, which is true of vLLM but is not a promise
+    # any managed provider makes.
+    counted_from: str = "chunks"
 
 
 async def stream_one(
@@ -41,6 +46,9 @@ async def stream_one(
         "temperature": workload.temperature,
         "max_tokens": workload.output_tokens,
         "ignore_eos": workload.ignore_eos,
+        # Ask for the authoritative count. Without this the only available
+        # figure is the number of content-bearing chunks.
+        "stream_options": {"include_usage": True},
     }
     if extra_body:
         body.update(extra_body)
@@ -53,6 +61,7 @@ async def stream_one(
     first_token_at: float | None = None
     last_token_at: float | None = None
     tokens = 0
+    reported_tokens: int | None = None
 
     try:
         async with client.stream(
@@ -75,8 +84,19 @@ async def stream_one(
                 if payload == "[DONE]":
                     break
                 try:
-                    delta = json.loads(payload)["choices"][0].get("delta", {})
-                except (json.JSONDecodeError, KeyError, IndexError):
+                    parsed = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+                # The usage chunk carries an empty choices list, so it must be
+                # read before anything indexes into choices.
+                usage = parsed.get("usage")
+                if isinstance(usage, dict):
+                    completion = usage.get("completion_tokens")
+                    if isinstance(completion, int) and completion > 0:
+                        reported_tokens = completion
+                try:
+                    delta = parsed["choices"][0].get("delta", {})
+                except (KeyError, IndexError, TypeError):
                     continue
                 if not delta.get("content"):
                     continue
@@ -95,8 +115,14 @@ async def stream_one(
         return RequestMetrics(0.0, 0.0, 0, total_ms, error="no tokens received")
 
     ttft_ms = (first_token_at - started) * 1000
+    # TPOT is per emitted chunk either way — it is a stream-timing property,
+    # and the chunk boundaries are what was actually observed.
     if tokens > 1 and last_token_at is not None:
         tpot_ms = (last_token_at - first_token_at) * 1000 / (tokens - 1)
     else:
         tpot_ms = 0.0
-    return RequestMetrics(ttft_ms, tpot_ms, tokens, total_ms)
+    if reported_tokens is not None:
+        return RequestMetrics(
+            ttft_ms, tpot_ms, reported_tokens, total_ms, counted_from="usage"
+        )
+    return RequestMetrics(ttft_ms, tpot_ms, tokens, total_ms, counted_from="chunks")
