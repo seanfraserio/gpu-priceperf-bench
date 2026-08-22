@@ -40,7 +40,13 @@ TOKEN_FILE = Path.home() / ".gppb-sink-token"
 # arrives; the hosts just above the floor are the ones that stall. A stall
 # costs a full pull budget at the run's hourly rate, while the next host up
 # the ladder costs about 8% more per hour — the trade is not close.
-MIN_INET_DOWN_MBPS = 900.0
+# Lowered from 900 once the L40S pool shrank to three machines, exactly one of
+# which is otherwise eligible and advertises 853. The stalls that motivated the
+# floor were at 600-700; 900 was a round number carrying margin above the
+# observed cliff, not a measured threshold. Bandwidth only affects the pull,
+# which is timed separately and excluded from the throughput knee, so this
+# cannot move a price/perf number — and the pull timeout still bounds the loss.
+MIN_INET_DOWN_MBPS = 850.0
 MIN_RELIABILITY = 0.97
 
 # The image is a cu128 build, so a driver that tops out below 12.8 cannot run
