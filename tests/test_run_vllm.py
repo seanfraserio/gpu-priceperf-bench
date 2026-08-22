@@ -49,3 +49,26 @@ def test_gpu_probes_survive_a_machine_without_nvidia_smi(monkeypatch):
     monkeypatch.setattr(subprocess, "run", no_binary)
     assert run_vllm._gpu_name() == "unknown"
     assert run_vllm._peak_vram_bytes() is None
+
+
+async def test_wait_healthy_gives_up_when_the_server_process_is_gone():
+    """Polling /health for thirty minutes against a process that already died
+    is thirty minutes of GPU rental for a known answer. The 27B is the run
+    most likely to fail at startup and the most expensive to fail on."""
+    import pytest
+    from gppb.run_vllm import _wait_healthy
+
+    with pytest.raises(RuntimeError, match="exited"):
+        await _wait_healthy(
+            "http://127.0.0.1:9", timeout_s=30.0, is_alive=lambda: False
+        )
+
+
+async def test_wait_healthy_keeps_waiting_while_the_server_is_alive():
+    """A slow boot is not a dead boot — the 27B loads 55.6GB before it serves."""
+    from gppb.run_vllm import _wait_healthy
+
+    with pytest.raises(TimeoutError):
+        await _wait_healthy(
+            "http://127.0.0.1:9", timeout_s=0.2, is_alive=lambda: True
+        )

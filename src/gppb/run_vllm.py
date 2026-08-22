@@ -8,6 +8,7 @@ import re
 import subprocess
 import time
 import uuid
+from typing import Callable
 
 import httpx
 
@@ -62,12 +63,38 @@ def _peak_vram_bytes() -> int | None:
         return None
 
 
-async def _wait_healthy(base_url: str, timeout_s: float = 1800) -> float:
+def _server_alive() -> bool:
+    """Whether the vLLM the entrypoint launched is still running.
+
+    Absent a PID we assume alive: never turn a missing signal into a failure.
+    """
+    raw = os.environ.get("VLLM_PID")
+    if not raw:
+        return True
+    try:
+        os.kill(int(raw), 0)
+    except (ValueError, ProcessLookupError):
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+async def _wait_healthy(
+    base_url: str,
+    timeout_s: float = 1800,
+    is_alive: Callable[[], bool] | None = None,
+) -> float:
     """Seconds from vLLM process start to first healthy response.
 
     Anchored to VLLM_START_EPOCH set by the entrypoint, so boot_seconds covers
     the whole server startup rather than only the part Python observed.
+
+    A slow boot is not a dead boot — the 27B reads 55.6GB of weights before it
+    serves anything — but polling for thirty minutes against a process that has
+    already exited is thirty minutes of GPU rental for a known answer.
     """
+    alive = is_alive or _server_alive
     start_epoch = float(os.environ.get("VLLM_START_EPOCH", time.time()))
     started = time.perf_counter()
     async with httpx.AsyncClient() as client:
@@ -77,6 +104,11 @@ async def _wait_healthy(base_url: str, timeout_s: float = 1800) -> float:
                     return time.time() - start_epoch
             except httpx.HTTPError:
                 pass
+            if not alive():
+                raise RuntimeError(
+                    "vLLM exited before serving — check the server log for the "
+                    "startup failure"
+                )
             await asyncio.sleep(2.0)
     raise TimeoutError("vLLM never became healthy")
 

@@ -106,6 +106,10 @@ vllm serve "${MODEL}" \
   ${PRECISION_FLAG} \
   --no-enable-prefix-caching \
   --port 8000 &
+# The harness watches this pid: a boot that has already failed should not cost
+# another thirty minutes of polling on a rented GPU.
+VLLM_PID=$!
+export VLLM_PID
 
 # 5. Benchmark. run_vllm waits for /health and records boot_seconds itself.
 python3 -m gppb.run_vllm

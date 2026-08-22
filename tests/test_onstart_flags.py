@@ -131,3 +131,15 @@ def test_backstop_ttl_is_not_shorter_than_a_normal_run():
     """A backstop that fires mid-run would kill good work."""
     body = open(SCRIPT).read()
     assert "TTL_BACKSTOP_MINUTES:-90" in body
+
+
+def test_entrypoint_exports_the_vllm_pid():
+    """_wait_healthy can only fail fast on a dead server if it knows which
+    process to watch; without the export it silently falls back to waiting the
+    full timeout."""
+    body = open(SCRIPT).read()
+    assert "VLLM_PID=$!" in body
+    assert "export VLLM_PID" in body
+    # The capture must follow the backgrounded server, not precede it.
+    assert body.index("--port 8000 &") < body.index("VLLM_PID=$!")
+    assert body.index("VLLM_PID=$!") < body.index("python3 -m gppb.run_vllm")
