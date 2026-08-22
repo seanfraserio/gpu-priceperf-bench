@@ -11,8 +11,18 @@ from gppb.sweep import run_sweep
 BASE_URL = "https://openrouter.ai/api"
 MODEL = "qwen/qwen3.8-27b"
 
-# The five providers serving Qwen3.8-27B as of 2026-08-19.
-PROVIDERS = ["chutes", "akashml", "venice", "reka", "io-net"]
+# Every provider serving Qwen3.8-27B, from OpenRouter's endpoint list on
+# 2026-08-21. CoreWeave and Parasail were missing from the original five, and
+# CoreWeave ties Chutes as the cheapest at $3.00 per 1M output tokens —
+# leaving the cheapest buy-side option out would have overstated every
+# self-host-wins claim in the writeup.
+#
+# Alibaba is excluded deliberately and not by oversight: it is the first-party
+# vendor at a 1M context window, a different product from the resellers.
+#
+# AkashML serves bf16 where the rest serve fp8. That is not normalised away —
+# it is what the endpoint actually is, and the precision belongs in the result.
+PROVIDERS = ["coreweave", "chutes", "reka", "venice", "parasail", "akashml", "io-net"]
 
 
 class SpendCapExceeded(RuntimeError):

@@ -5,8 +5,16 @@ from gppb.openrouter import (
 )
 
 
-def test_provider_list_matches_the_five_that_serve_the_model():
-    assert PROVIDERS == ["chutes", "akashml", "venice", "reka", "io-net"]
+def test_every_provider_is_pinnable_and_distinct():
+    """This used to assert an exact list of five, which is how two providers
+    stayed missing: the assertion agreed with the mistake instead of checking
+    it against the world. Coverage against OpenRouter's live endpoints is
+    asserted separately; what matters structurally is that each entry is a
+    usable, unique provider slug."""
+    assert len(PROVIDERS) == len(set(PROVIDERS))
+    assert all(p and p == p.strip().lower() for p in PROVIDERS)
+    for provider in PROVIDERS:
+        assert pin_provider_body(provider)["provider"]["order"] == [provider]
 
 
 def test_pin_provider_body_disables_fallbacks():
@@ -93,3 +101,22 @@ def test_spend_cap_projects_a_level_from_the_workload():
     # ignore_eos forces exactly output_tokens per request, so the projection is
     # exact rather than optimistic.
     assert project_level_tokens(concurrency=4, workload=Workload()) == 4 * 4 * 256
+
+
+def test_provider_list_is_not_missing_the_cheapest_managed_options():
+    """Omitting a provider biases the comparison in self-hosting's favour, and
+    the two that were missing included the joint-cheapest endpoint. Checked
+    against OpenRouter's live endpoint list on 2026-08-21."""
+    from gppb.openrouter import PROVIDERS
+
+    live = {"coreweave", "chutes", "reka", "venice", "parasail", "akashml", "io-net", "alibaba"}
+    missing = live - set(PROVIDERS) - {"alibaba"}
+    assert not missing, f"managed providers excluded from the comparison: {missing}"
+
+
+def test_the_cheapest_managed_provider_is_included():
+    """CoreWeave and Chutes tie at $3.00 per 1M output tokens. If the cheapest
+    buy-side option is absent, every self-host-wins claim is overstated."""
+    from gppb.openrouter import PROVIDERS
+
+    assert "coreweave" in PROVIDERS
