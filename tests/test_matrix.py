@@ -102,3 +102,21 @@ def test_orchestrator_stops_when_the_budget_gate_trips(monkeypatch):
     done = orchestrate.run_matrix(dry_run=False)
     assert len(calls) < 21, "the gate must stop the sweep"
     assert len(done) == len(calls)
+
+
+def test_declared_vram_matches_what_hosts_actually_report():
+    """The VRAM floor is checked against the host's reported gpu_ram, so a
+    tier declaring more than any real host reports rents nothing at all. These
+    are the values observed live on Vast."""
+    observed = {"RTX_5090": 32.0, "A100_SXM4": 80.0, "L40S": 45.0, "H100_SXM": 80.0}
+    for key, reported in observed.items():
+        assert TIERS[key].vram_gb <= reported, (
+            f"{key} declares {TIERS[key].vram_gb}GB but hosts report {reported}GB"
+        )
+        assert TIERS[key].vram_gb * 0.95 <= reported
+
+
+def test_the_headline_model_still_fits_where_it_should():
+    """Correcting the L40S size must not silently drop it from the matrix."""
+    assert feasible(MODELS["headline"], TIERS["L40S"]) is True
+    assert feasible(MODELS["headline"], TIERS["RTX_5090"]) is False

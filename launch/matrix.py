@@ -49,11 +49,19 @@ MODELS: dict[str, Model] = {
 # Prices are indicative, for ordering and budgeting only. The rate actually
 # paid is whatever the accepted offer charges, and that is what lands in the
 # result — never this table.
+#
+# Observed on Vast 2026-08-21 as the cheapest offer meeting the bandwidth,
+# reliability and VRAM floors. The earlier A100 and H100 figures were roughly
+# half the real price, which made the budget gate optimistic by ~60% across
+# the matrix — it would have approved runs the credit could not cover.
 TIERS: dict[str, Tier] = {
     "RTX_5090": Tier("RTX_5090", 32.0, 0.34),
-    "A100_SXM4": Tier("A100_SXM4", 80.0, 0.60),
-    "L40S": Tier("L40S", 48.0, 0.80),
-    "H100_SXM": Tier("H100_SXM", 80.0, 1.99),
+    "A100_SXM4": Tier("A100_SXM4", 80.0, 1.04),
+    # The L40S is a 48GB part but every Vast host reports 45GB usable, and the
+    # VRAM floor is checked against what the host reports. Declaring 48 here
+    # rejected every L40S offer and failed the tier outright.
+    "L40S": Tier("L40S", 45.0, 0.74),
+    "H100_SXM": Tier("H100_SXM", 80.0, 2.93),
 }
 
 

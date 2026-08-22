@@ -74,6 +74,11 @@ class Offer:
     # minutes at 950Mbps and ~20 at 90Mbps, on the same meter.
     inet_down_mbps: float | None = None
     reliability: float | None = None
+    # Vast's gpu_name query does not pin the memory variant: "A100_SXM4"
+    # returns 40GB and 80GB cards together, and the cheapest are the small
+    # ones. The matrix decides what fits from the tier's declared VRAM, so
+    # renting the wrong variant makes feasible() a lie.
+    vram_gb: float | None = None
 
 
 def select_offer(
@@ -83,6 +88,7 @@ def select_offer(
     max_hourly: float,
     min_inet_down_mbps: float | None = None,
     min_reliability: float | None = None,
+    min_vram_gb: float | None = None,
 ) -> Offer:
     """Cheapest qualifying offer, or abort. Never silently upgrade.
 
@@ -100,6 +106,7 @@ def select_offer(
              or (o.inet_down_mbps or 0.0) >= min_inet_down_mbps)
         and (min_reliability is None
              or (o.reliability or 0.0) >= min_reliability)
+        and (min_vram_gb is None or (o.vram_gb or 0.0) >= min_vram_gb)
     ]
     if not matches:
         detail = f"at or under ${max_hourly}/hr"
@@ -107,6 +114,8 @@ def select_offer(
             detail += f", >={min_inet_down_mbps}Mbps down"
         if min_reliability is not None:
             detail += f", >={min_reliability} reliability"
+        if min_vram_gb is not None:
+            detail += f", >={min_vram_gb}GB VRAM"
         raise LookupError(f"no {num_gpus}x {gpu_name} {detail} — not renting")
     return min(matches, key=lambda o: o.hourly_usd)
 
@@ -166,6 +175,11 @@ def search_offers(gpu_name: str, num_gpus: int) -> list[Offer]:
             ),
             reliability=(
                 float(item["reliability2"]) if item.get("reliability2") is not None else None
+            ),
+            # Vast reports per-GPU memory in MB.
+            vram_gb=(
+                float(item["gpu_ram"]) / 1024.0
+                if item.get("gpu_ram") is not None else None
             ),
         )
         for item in json.loads(raw)

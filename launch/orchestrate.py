@@ -17,6 +17,7 @@ from launch.matrix import (
     MODELS, TIERS, BudgetExhausted, BudgetGate, Run, build_matrix,
     estimate_run_usd,
 )
+from launch.coverage import missing
 from launch.reap import reap
 from launch.vast import (
     build_env, launch_instance, onstart_script, search_offers, select_offer,
@@ -117,6 +118,10 @@ def run_one(run: Run, gppb_ref: str, ttl_minutes: int = CONTAINER_TTL_MINUTES) -
         max_hourly=tier.typical_hourly_usd * 2.0,
         min_inet_down_mbps=MIN_INET_DOWN_MBPS,
         min_reliability=MIN_RELIABILITY,
+        # The tier's declared VRAM is what feasible() reasons about, so the
+        # rented card has to actually have it. A little tolerance because hosts
+        # report 79-80GB for the same 80GB part.
+        min_vram_gb=tier.vram_gb * 0.95,
     )
     env = build_env(
         model=model.hf_id, precision=model.precision, tp_size=1,
@@ -160,6 +165,8 @@ def run_matrix(
     dry_run: bool = True,
     reserve_usd: float = 1.00,
     skip: int = 0,
+    resume: bool = False,
+    results_dir: Path | None = None,
 ) -> list[Run]:
     """Work the matrix until it is done or the budget says stop.
 
@@ -167,7 +174,15 @@ def run_matrix(
     interrupted — this one was — and resuming from the start would buy the
     same results twice. The matrix is deterministic and ordered, so an offset
     is enough to resume from."""
-    planned = build_matrix()[skip:]
+    if resume:
+        # After two interruptions and two dead hosts, "where was I" is a
+        # question about which results exist, not about an offset into a plan
+        # whose runs may each have failed.
+        from report.generate import load_results
+
+        planned = missing(load_results(results_dir or Path("results")))
+    else:
+        planned = build_matrix()[skip:]
     if limit is not None:
         planned = planned[:limit]
     if dry_run:
@@ -209,11 +224,14 @@ if __name__ == "__main__":
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--skip", type=int, default=0,
                         help="drop the first N planned runs (resume a sweep)")
+    parser.add_argument("--resume", action="store_true",
+                        help="run only what results/ is still missing")
     parser.add_argument("--go", action="store_true", help="actually spend money")
     args = parser.parse_args()
 
     result = run_matrix(gppb_ref=args.ref, limit=args.limit,
-                        dry_run=not args.go, skip=args.skip)
+                        dry_run=not args.go, skip=args.skip,
+                        resume=args.resume)
     if not args.go:
         total = sum(
             estimate_run_usd(MODELS[r.model_key], TIERS[r.tier_key]) for r in result

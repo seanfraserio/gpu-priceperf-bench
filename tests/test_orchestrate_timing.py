@@ -86,3 +86,36 @@ def test_pull_budget_is_far_shorter_than_the_run_itself():
     first four hosts stalled, so the pull budget has to be impatient relative
     to the run it precedes."""
     assert orch.PULL_TIMEOUT_MINUTES < orch.CONTAINER_TTL_MINUTES
+
+
+def test_resume_runs_what_coverage_says_is_owed(tmp_path, monkeypatch):
+    """After two interruptions and two bad hosts, "where was I" is a question
+    about results, not about an offset into the plan."""
+    from gppb.models import (
+        BenchResult, Hardware, Pricing, Stats, StepResult, Target, Timings, Workload,
+    )
+
+    def _stats(v):
+        return Stats(p50=v, p90=v, min=v, max=v)
+
+    def _step(c, tps):
+        return StepResult(
+            concurrency=c, requests_completed=c * 4, requests_failed=0,
+            wall_seconds=10.0, output_tokens_total=int(tps * 10),
+            output_tokens_per_sec=tps, ttft_ms=_stats(1.0), tpot_ms=_stats(1.0),
+        )
+
+    banked = BenchResult(
+        run_id="vllm-5090-1",
+        target=Target(kind="vllm", model="Qwen/Qwen3-8B", precision="bfloat16", tp_size=1),
+        hardware=Hardware(gpu_name="NVIDIA GeForce RTX 5090", gpu_count=1),
+        pricing=Pricing(hourly_rate_usd=0.34),
+        timings=Timings(), workload=Workload(), run_index=1, partial=False,
+        steps=[_step(1, 94.0), _step(8, 1568.0), _step(16, 1400.0)],
+    )
+    (tmp_path / "banked.json").write_text(banked.model_dump_json())
+
+    owed = orch.run_matrix(dry_run=True, resume=True, results_dir=tmp_path)
+    fives = [r for r in owed if r.tier_key == "RTX_5090"]
+    assert len(fives) == 2, "one 5090 sample banked, two still owed"
+    assert len(owed) == len(orch.build_matrix()) - 1

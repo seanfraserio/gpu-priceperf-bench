@@ -18,7 +18,9 @@ from launch.matrix import MODELS, RUNS_PER_CONFIG, Run, build_matrix
 # it under the SXM heading would corrupt the comparison the project exists for.
 TIER_MARKERS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "RTX_5090": (("RTX", "5090"), ()),
-    "A100_SXM4": (("A100", "SXM4"), ()),
+    # Half the VRAM is a different machine here: it changes what fits and how
+    # much KV cache there is. The first live A100 run rented a 40GB card.
+    "A100_SXM4": (("A100", "SXM4", "80GB"), ()),
     "L40S": (("L40S",), ()),
     "H100_SXM": (("H100",), ("PCIE", "NVL")),
 }

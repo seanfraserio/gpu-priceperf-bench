@@ -266,3 +266,34 @@ def test_select_offer_says_why_nothing_qualified():
     with pytest.raises(LookupError, match="Mbps"):
         select_offer(_bw_offers(), "RTX_5090", 1, max_hourly=0.60,
                      min_inet_down_mbps=5000.0)
+
+
+def _mixed_a100_offers():
+    """Vast's gpu_name=A100_SXM4 query returns both the 40GB and 80GB cards,
+    and the cheapest are always the 40GB ones."""
+    return [
+        Offer(id=10, gpu_name="A100 SXM4", num_gpus=1, hourly_usd=0.52, vram_gb=40.0),
+        Offer(id=11, gpu_name="A100 SXM4", num_gpus=1, hourly_usd=0.55, vram_gb=39.0),
+        Offer(id=12, gpu_name="A100 SXM4", num_gpus=1, hourly_usd=0.94, vram_gb=80.0),
+    ]
+
+
+def test_select_offer_will_not_rent_a_smaller_card_than_the_tier_declares():
+    """The matrix decides a model fits from the tier's declared VRAM. Renting a
+    40GB card for an 80GB tier makes feasible() a lie — and the first live A100
+    run did exactly that, at 39.4GB peak on a 40GB card."""
+    chosen = select_offer(
+        _mixed_a100_offers(), "A100_SXM4", 1, max_hourly=2.00, min_vram_gb=76.0
+    )
+    assert chosen.id == 12
+    assert chosen.vram_gb == 80.0
+
+
+def test_select_offer_aborts_when_no_card_is_large_enough():
+    """Silently falling back to a smaller card is how the wrong GPU ends up
+    under the right heading."""
+    with pytest.raises(LookupError):
+        select_offer(
+            [o for o in _mixed_a100_offers() if o.vram_gb and o.vram_gb < 76],
+            "A100_SXM4", 1, max_hourly=2.00, min_vram_gb=76.0,
+        )

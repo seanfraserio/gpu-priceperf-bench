@@ -93,3 +93,10 @@ def test_a_fully_covered_matrix_asks_for_nothing():
         for _ in range(3)
     ]
     assert missing(results, runs_per_config=3) == []
+
+
+def test_a_40gb_a100_is_not_filed_under_the_80gb_tier():
+    """Half the VRAM is a different machine for this purpose: it changes what
+    fits and what the KV cache can hold. The first live A100 run rented one."""
+    assert tier_for("NVIDIA A100-SXM4-40GB") is None
+    assert tier_for("NVIDIA A100-SXM4-80GB") == "A100_SXM4"
