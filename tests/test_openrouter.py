@@ -38,13 +38,25 @@ def test_spend_cap_raises_before_exceeding_the_limit():
         cap.charge(200)
 
 
+# The shape below is what https://openrouter.ai/api/v1/models/<id>/endpoints
+# actually returned on 2026-08-22: one object under "data" carrying an
+# "endpoints" list. The previous mock invented a list of {"endpoint": {...}}
+# wrappers, so every test passed against a response the API never sends and
+# fetch_pricing raised AttributeError the first time it met the real thing.
+def _endpoints_response(*endpoints: dict) -> httpx.Response:
+    return httpx.Response(200, json={"data": {
+        "id": "qwen/qwen3.8-27b",
+        "name": "Qwen: Qwen3.8 27B",
+        "endpoints": list(endpoints),
+    }})
+
+
 async def test_fetch_pricing_reads_live_rates_not_hardcoded_ones():
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"data": [{
-            "id": "qwen/qwen3.8-27b",
-            "endpoint": {"provider_name": "Chutes",
-                         "pricing": {"prompt": "0.0000004", "completion": "0.000003"}},
-        }]})
+        return _endpoints_response({
+            "provider_name": "Chutes", "quantization": "fp8",
+            "pricing": {"prompt": "0.0000004", "completion": "0.000003"},
+        })
 
     pricing = await fetch_pricing(
         "chutes", "qwen/qwen3.8-27b", "key", transport=httpx.MockTransport(handler)
@@ -55,7 +67,7 @@ async def test_fetch_pricing_reads_live_rates_not_hardcoded_ones():
 
 async def test_fetch_pricing_errors_when_provider_absent():
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"data": []})
+        return _endpoints_response()
 
     with pytest.raises(LookupError):
         await fetch_pricing(
@@ -120,3 +132,18 @@ def test_the_cheapest_managed_provider_is_included():
     from gppb.openrouter import PROVIDERS
 
     assert "coreweave" in PROVIDERS
+
+
+async def test_a_provider_name_with_a_space_still_matches_its_slug():
+    """OpenRouter calls it "Io Net"; the slug used to pin it is "io-net". Only
+    dots were normalised, so this provider could never be priced or pinned."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _endpoints_response({
+            "provider_name": "Io Net", "quantization": "fp8",
+            "pricing": {"prompt": "0.00000048", "completion": "0.0000034"},
+        })
+
+    pricing = await fetch_pricing(
+        "io-net", "qwen/qwen3.8-27b", "key", transport=httpx.MockTransport(handler)
+    )
+    assert pricing.output_per_mtok_usd == pytest.approx(3.40)

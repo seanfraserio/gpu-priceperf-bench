@@ -59,6 +59,14 @@ def pin_provider_body(provider: str) -> dict:
     return {"provider": {"order": [provider], "allow_fallbacks": False}}
 
 
+def _slug(provider_name: str) -> str:
+    """OpenRouter's display name as the slug used to pin the provider.
+
+    "Io Net" pins as "io-net": spaces separate the words there exactly as dots
+    do elsewhere, and normalising only dots left that provider unmatchable."""
+    return provider_name.lower().replace(".", "-").replace(" ", "-")
+
+
 async def fetch_pricing(
     provider: str,
     model: str,
@@ -76,9 +84,10 @@ async def fetch_pricing(
         response.raise_for_status()
         payload = response.json()
 
-    for entry in payload.get("data", []):
-        endpoint = entry.get("endpoint", {})
-        if endpoint.get("provider_name", "").lower().replace(".", "-") != provider:
+    # "data" is one model object carrying an "endpoints" list — not a list of
+    # per-endpoint wrappers. Confirmed against the live response on 2026-08-22.
+    for endpoint in payload.get("data", {}).get("endpoints", []):
+        if _slug(endpoint.get("provider_name", "")) != provider:
             continue
         prices = endpoint["pricing"]
         return Pricing(
