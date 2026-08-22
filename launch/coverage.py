@@ -25,6 +25,10 @@ TIER_MARKERS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "A100_SXM4": (("A100", "SXM4", "80GB"), ()),
     "L40S": (("L40S",), ()),
     "H100_SXM": (("H100",), ("PCIE", "NVL")),
+    # Vast lists a server part and a workstation part under nearly the same
+    # name. Only the server card was measured, so the workstation one has to
+    # fail to match rather than be filed under it.
+    "RTX_PRO_6000_S": (("RTX", "PRO", "6000"), ("WORKSTATION", " WS")),
 }
 
 

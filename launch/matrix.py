@@ -43,7 +43,12 @@ class Run:
 
 MODELS: dict[str, Model] = {
     "anchor": Model("anchor", "Qwen/Qwen3-8B", "bfloat16", 20.0, 1.0),
-    "headline": Model("headline", "Qwen/Qwen3.8-27B", "fp8", 34.0, 1.6),
+    # 46GB, not the 34 first estimated. Measured: the fp8 weights are 28.06GiB
+    # and CUDA-graph capture needs more headroom than a 44.40GiB L40S has —
+    # three rentals died in profile_cudagraph_memory with 59.31MiB free, and
+    # the low estimate is what let the sweep keep paying to rediscover it.
+    # See docs/l40s-27b-does-not-fit.md.
+    "headline": Model("headline", "Qwen/Qwen3.8-27B", "fp8", 46.0, 1.6),
 }
 
 # Prices are indicative, for ordering and budgeting only. The rate actually
@@ -62,6 +67,10 @@ TIERS: dict[str, Tier] = {
     # rejected every L40S offer and failed the tier outright.
     "L40S": Tier("L40S", 45.0, 0.74),
     "H100_SXM": Tier("H100_SXM", 80.0, 2.93),
+    # Blackwell server part, 96GB GDDR7 — every Vast host reports 95GB, so
+    # that is what is declared. Eleven single-card offers on 2026-08-22 ran
+    # $1.06-$1.81/hr; the median is what the budget reasons about.
+    "RTX_PRO_6000_S": Tier("RTX_PRO_6000_S", 95.0, 1.45),
 }
 
 

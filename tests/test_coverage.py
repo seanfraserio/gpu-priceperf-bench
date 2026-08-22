@@ -86,9 +86,10 @@ def test_a_fully_covered_matrix_asks_for_nothing():
             ("NVIDIA A100-SXM4-80GB", "Qwen/Qwen3-8B"),
             ("NVIDIA A100-SXM4-80GB", "Qwen/Qwen3.8-27B"),
             ("NVIDIA L40S", "Qwen/Qwen3-8B"),
-            ("NVIDIA L40S", "Qwen/Qwen3.8-27B"),
             ("NVIDIA H100 80GB HBM3", "Qwen/Qwen3-8B"),
             ("NVIDIA H100 80GB HBM3", "Qwen/Qwen3.8-27B"),
+            ("NVIDIA RTX PRO 6000 Blackwell Server Edition", "Qwen/Qwen3-8B"),
+            ("NVIDIA RTX PRO 6000 Blackwell Server Edition", "Qwen/Qwen3.8-27B"),
         ]
         for _ in range(3)
     ]
@@ -121,3 +122,15 @@ def test_an_untouched_cell_still_starts_at_one():
     owed = missing([])
     cell = [r for r in owed if r.tier_key == "RTX_5090" and r.model_key == "anchor"]
     assert [r.run_index for r in cell] == [1, 2, 3]
+
+
+def test_the_server_blackwell_is_not_confused_with_the_workstation_one():
+    """Vast lists both "RTX PRO 6000 S" and "RTX PRO 6000 WS" — 11 offers and
+    27 offers respectively on 2026-08-22. They are different cards with
+    different power and cooling, and only the server part was measured.
+    Filing a WS result under the S heading would put an unmeasured card's
+    numbers in the published table."""
+    assert tier_for("NVIDIA RTX PRO 6000 Blackwell Server Edition") == "RTX_PRO_6000_S"
+    assert tier_for("RTX PRO 6000 S") == "RTX_PRO_6000_S"
+    assert tier_for("NVIDIA RTX PRO 6000 Blackwell Workstation Edition") is None
+    assert tier_for("RTX PRO 6000 WS") is None

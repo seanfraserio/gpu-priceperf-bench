@@ -89,7 +89,10 @@ def test_orchestrator_dry_run_spends_nothing(monkeypatch):
     monkeypatch.setattr(orchestrate, "run_one", lambda *a, **k: launched.append(1))
     plan = orchestrate.run_matrix(dry_run=True)
     assert launched == []
-    assert len(plan) == 21
+    # Eight feasible cells, three runs each: the 8B on all five tiers, the 27B
+    # on the four that can hold it. Was 21 before the Blackwell tier was added
+    # and the L40S was measured out of the 27B's reach.
+    assert len(plan) == 24
 
 
 def test_orchestrator_stops_when_the_budget_gate_trips(monkeypatch):
@@ -108,7 +111,8 @@ def test_declared_vram_matches_what_hosts_actually_report():
     """The VRAM floor is checked against the host's reported gpu_ram, so a
     tier declaring more than any real host reports rents nothing at all. These
     are the values observed live on Vast."""
-    observed = {"RTX_5090": 32.0, "A100_SXM4": 80.0, "L40S": 45.0, "H100_SXM": 80.0}
+    observed = {"RTX_5090": 32.0, "A100_SXM4": 80.0, "L40S": 45.0,
+                "H100_SXM": 80.0, "RTX_PRO_6000_S": 95.0}
     for key, reported in observed.items():
         assert TIERS[key].vram_gb <= reported, (
             f"{key} declares {TIERS[key].vram_gb}GB but hosts report {reported}GB"
@@ -117,6 +121,30 @@ def test_declared_vram_matches_what_hosts_actually_report():
 
 
 def test_the_headline_model_still_fits_where_it_should():
-    """Correcting the L40S size must not silently drop it from the matrix."""
-    assert feasible(MODELS["headline"], TIERS["L40S"]) is True
+    """Correcting a tier's declared size must not silently drop it from the
+    matrix. The L40S assertion moved to
+    `test_the_headline_model_is_known_not_to_fit_the_l40s` once three rentals
+    proved the 27B does not fit it."""
+    assert feasible(MODELS["headline"], TIERS["A100_SXM4"]) is True
     assert feasible(MODELS["headline"], TIERS["RTX_5090"]) is False
+
+
+def test_the_blackwell_server_card_is_a_tier():
+    """Observed live on Vast 2026-08-22: eleven single-card offers, every one
+    reporting 95GB, $1.06-$1.81/hr. The 27B's 28GB of fp8 weights fit with
+    room to spare, so it runs the same config as every other tier."""
+    assert "RTX_PRO_6000_S" in TIERS
+    assert feasible(MODELS["headline"], TIERS["RTX_PRO_6000_S"]) is True
+    assert TIERS["RTX_PRO_6000_S"].vram_gb <= 95.0
+    assert TIERS["RTX_PRO_6000_S"].vram_gb * 0.95 <= 95.0
+
+
+def test_the_headline_model_is_known_not_to_fit_the_l40s():
+    """Measured, not estimated. Three L40S rentals died in
+    profile_cudagraph_memory: 28.06GiB of weights on a 44.40GiB card left
+    59.31MiB free, and an 8k-context retry failed byte-identically. The
+    declared requirement was 34GB, which is what let the sweep keep paying to
+    rediscover this. See docs/l40s-27b-does-not-fit.md."""
+    assert feasible(MODELS["headline"], TIERS["L40S"]) is False
+    assert feasible(MODELS["headline"], TIERS["A100_SXM4"]) is True
+    assert feasible(MODELS["headline"], TIERS["H100_SXM"]) is True
