@@ -74,6 +74,7 @@ class Offer:
     # minutes at 950Mbps and ~20 at 90Mbps, on the same meter.
     inet_down_mbps: float | None = None
     reliability: float | None = None
+    machine_id: int | None = None
     # Vast's gpu_name query does not pin the memory variant: "A100_SXM4"
     # returns 40GB and 80GB cards together, and the cheapest are the small
     # ones. The matrix decides what fits from the tier's declared VRAM, so
@@ -89,6 +90,7 @@ def select_offer(
     min_inet_down_mbps: float | None = None,
     min_reliability: float | None = None,
     min_vram_gb: float | None = None,
+    blocked: set[int] | None = None,
 ) -> Offer:
     """Cheapest qualifying offer, or abort. Never silently upgrade.
 
@@ -107,6 +109,9 @@ def select_offer(
         and (min_reliability is None
              or (o.reliability or 0.0) >= min_reliability)
         and (min_vram_gb is None or (o.vram_gb or 0.0) >= min_vram_gb)
+        # A host that has already taken a run's money and returned nothing
+        # keeps its advertised numbers, and stays the cheapest.
+        and (not blocked or o.machine_id not in blocked)
     ]
     if not matches:
         detail = f"at or under ${max_hourly}/hr"
@@ -184,6 +189,9 @@ def search_offers(gpu_name: str, num_gpus: int) -> list[Offer]:
                 float(item["gpu_ram"]) / 1024.0
                 if item.get("gpu_ram") is not None else None
             ),
+            # The listing is what gets rented; the machine is what keeps
+            # failing, and it can come back under a new listing id.
+            machine_id=item.get("machine_id"),
         )
         for item in json.loads(raw)
     ]

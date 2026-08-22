@@ -21,6 +21,7 @@ from launch.matrix import (
 )
 from launch.coverage import missing
 from launch.reap import reap
+from launch.blocklist import Blocklist
 from launch.sync import FAILURE_PREFIX
 from launch.vast import (
     build_env, launch_instance, onstart_script, search_offers, select_offer,
@@ -163,6 +164,10 @@ def preflight(search: Callable[[str, int], list] | None = None) -> list[str]:
 # would only buy the same failure eighteen more times.
 MAX_CONSECUTIVE_FAILURES = 3
 
+# Remembered between sweeps: a sweep is restarted often, and a blocklist that
+# only lives in memory forgets the bad host on every restart.
+BLOCKLIST = Blocklist()
+
 
 def _sink_keys() -> set[str]:
     from launch.sync import list_keys
@@ -212,6 +217,7 @@ def run_one(
         # rented card has to actually have it. A little tolerance because hosts
         # report 79-80GB for the same 80GB part.
         min_vram_gb=tier.vram_gb * 0.95,
+        blocked=BLOCKLIST.machines(),
     )
     env = build_env(
         model=model.hf_id, precision=model.precision, tp_size=1,
@@ -240,9 +246,16 @@ def run_one(
     # The pull is billed but is not the run. Time it separately so a slow host
     # is reported as a slow host, not as a benchmark that hung.
     pull_started = time.time()
+    def verdict(outcome: str) -> str:
+        """Record the host when the run bought nothing, so the next one goes
+        somewhere else."""
+        if outcome != "completed" and offer.machine_id is not None:
+            BLOCKLIST.record(offer.machine_id, outcome)
+        return outcome
+
     if not await_running(instance_id):
         destroy()
-        return "never-started"
+        return verdict("never-started")
     print(f"    running after {(time.time() - pull_started) / 60:.1f} min pull")
 
     # The container is supposed to destroy itself when the sweep ends. One
@@ -256,13 +269,13 @@ def run_one(
         published = _published(before, keys, complete)
         if published:
             destroy()
-            return published
+            return verdict(published)
         if not any(i.get("id") == instance_id for i in _instances()):
-            return _outcome(before, keys, complete)
+            return verdict(_outcome(before, keys, complete))
     # Past the timeout the instance is hung and its own TTL has already failed
     # to stop it, so kill it here rather than trusting that timer twice.
     destroy()
-    return "timeout"
+    return verdict("timeout")
 
 
 def _published(

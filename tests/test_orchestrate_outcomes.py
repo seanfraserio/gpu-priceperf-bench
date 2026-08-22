@@ -17,7 +17,8 @@ def _stub_launch(monkeypatch, keys_before: set[str], keys_after: set[str]):
     from launch.vast import Offer
 
     offer = Offer(id=1, hourly_usd=0.35, gpu_name="RTX 5090", num_gpus=1,
-                  inet_down_mbps=1000.0, reliability=0.99, vram_gb=32.0)
+                  inet_down_mbps=1000.0, reliability=0.99, vram_gb=32.0,
+                  machine_id=4242)
     monkeypatch.setattr(orchestrate, "search_offers", lambda *a, **k: [offer])
     monkeypatch.setattr(orchestrate, "select_offer", lambda *a, **k: offer)
     monkeypatch.setattr(orchestrate, "launch_instance",
@@ -147,3 +148,25 @@ def test_a_partial_upload_left_by_a_dead_instance_is_not_a_success(monkeypatch):
     outcome = orchestrate.run_one(RUN, "ref", sink_keys=keys,
                                   is_complete=lambda key: False)
     assert outcome == "no-result"
+
+
+def test_a_host_that_returns_nothing_is_not_rented_again(monkeypatch, tmp_path):
+    """Three of four RTX 5090 runs went to one machine and came back empty,
+    because it was the cheapest and nothing remembered the last time."""
+    from launch.blocklist import Blocklist
+
+    blocked = Blocklist(tmp_path / "b.json")
+    keys = _stub_launch(monkeypatch, {"old.json"}, {"old.json"})
+    monkeypatch.setattr(orchestrate, "BLOCKLIST", blocked)
+    assert orchestrate.run_one(RUN, "ref", sink_keys=keys) == "no-result"
+    assert blocked.machines() == {4242}
+
+
+def test_a_host_that_delivered_stays_available(monkeypatch, tmp_path):
+    from launch.blocklist import Blocklist
+
+    blocked = Blocklist(tmp_path / "b.json")
+    keys = _stub_launch(monkeypatch, {"old.json"}, {"old.json", "vllm-x-tp1-a.json"})
+    monkeypatch.setattr(orchestrate, "BLOCKLIST", blocked)
+    orchestrate.run_one(RUN, "ref", sink_keys=keys, is_complete=lambda key: True)
+    assert blocked.machines() == set()
