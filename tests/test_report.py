@@ -135,3 +135,33 @@ def test_throughput_chart_writes_a_file(tmp_path):
     render_throughput_chart(
         throughput_curves([_curve_result("a", "H100", [(1, 40.0), (8, 300.0)])]), out)
     assert out.exists() and out.stat().st_size > 0
+
+
+def _api_with_failures(provider: str) -> BenchResult:
+    """A provider that failed at least one request at every level it was given."""
+    result = _api(provider)
+    step = _step(120.0)
+    step.requests_failed = 1
+    result.steps = [step]
+    return result
+
+
+def test_a_provider_with_no_clean_level_is_excluded_not_fatal():
+    """Parasail failed a request at every level of the real buy-side sweep. The
+    knee refuses to quote a level that had failures — correctly — but that
+    refusal propagated out of cost_rows and took the whole report down with it,
+    so six healthy providers and eighteen GPU runs produced nothing."""
+    rows = cost_rows([_vllm("a", 1000.0), _api_with_failures("parasail")])
+    assert [r.label for r in rows] == ["NVIDIA H100 80GB HBM3 TP1 Qwen3.8-27B"]
+
+
+def test_the_excluded_target_is_reported_rather_than_dropped_quietly():
+    """A provider that vanishes from the table without explanation reads as one
+    that was never measured."""
+    from report.generate import unusable
+
+    excluded = unusable([_vllm("a", 1000.0), _api_with_failures("parasail")])
+    assert len(excluded) == 1
+    label, reason = excluded[0]
+    assert "parasail" in label
+    assert "fail" in reason.lower()

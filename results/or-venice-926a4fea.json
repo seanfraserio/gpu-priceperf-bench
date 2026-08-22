@@ -1,0 +1,122 @@
+{
+  "schema_version": "1",
+  "run_id": "or-venice-926a4fea",
+  "valid": true,
+  "invalid_reason": null,
+  "partial": false,
+  "target": {
+    "kind": "openrouter",
+    "model": "qwen/qwen3.8-27b",
+    "precision": null,
+    "tp_size": null,
+    "provider": "venice"
+  },
+  "hardware": {
+    "gpu_name": "managed",
+    "gpu_count": 0,
+    "driver_version": null,
+    "vllm_version": null,
+    "peak_vram_bytes": null
+  },
+  "pricing": {
+    "hourly_rate_usd": null,
+    "input_per_mtok_usd": 0.44999999999999996,
+    "output_per_mtok_usd": 3.1999999999999997
+  },
+  "timings": {
+    "download_seconds": null,
+    "boot_seconds": null
+  },
+  "workload": {
+    "input_tokens": 1024,
+    "output_tokens": 256,
+    "temperature": 0.0,
+    "ignore_eos": true,
+    "max_model_len": 32768
+  },
+  "run_index": 1,
+  "steps": [
+    {
+      "concurrency": 1,
+      "requests_completed": 4,
+      "requests_failed": 0,
+      "wall_seconds": 10.172009750036523,
+      "output_tokens_total": 1024,
+      "output_tokens_per_sec": 100.66840527716987,
+      "ttft_ms": {
+        "p50": 713.1521669798531,
+        "p90": 750.6552080158144,
+        "min": 705.5979580618441,
+        "max": 750.6552080158144
+      },
+      "tpot_ms": {
+        "p50": 17.80778248659194,
+        "p90": 18.071450495049675,
+        "min": 17.22246886166776,
+        "max": 18.071450495049675
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests_completed": 16,
+      "requests_failed": 0,
+      "wall_seconds": 13.30601358297281,
+      "output_tokens_total": 4096,
+      "output_tokens_per_sec": 307.83073942157193,
+      "ttft_ms": {
+        "p50": 774.3273334926926,
+        "p90": 838.081790949218,
+        "min": 545.7165419356897,
+        "max": 912.5580419786274
+      },
+      "tpot_ms": {
+        "p50": 19.37413820910853,
+        "p90": 36.57337310274174,
+        "min": 17.972409482991814,
+        "max": 43.139235227665104
+      }
+    },
+    {
+      "concurrency": 16,
+      "requests_completed": 64,
+      "requests_failed": 0,
+      "wall_seconds": 16.632794541073963,
+      "output_tokens_total": 16384,
+      "output_tokens_per_sec": 985.0419278336195,
+      "ttft_ms": {
+        "p50": 846.4766669785604,
+        "p90": 1390.53979201708,
+        "min": 700.7152909645811,
+        "max": 2470.363083994016
+      },
+      "tpot_ms": {
+        "p50": 24.465479643817392,
+        "p90": 32.87403697796752,
+        "min": 17.893478448299327,
+        "max": 58.407594227570705
+      }
+    },
+    {
+      "concurrency": 64,
+      "requests_completed": 23,
+      "requests_failed": 233,
+      "wall_seconds": 3.9873526669107378,
+      "output_tokens_total": 5888,
+      "output_tokens_per_sec": 1476.6689811166912,
+      "ttft_ms": {
+        "p50": 1191.6538750519976,
+        "p90": 1212.7101669320837,
+        "min": 649.2835829267278,
+        "max": 1505.232583032921
+      },
+      "tpot_ms": {
+        "p50": 21.373460252619424,
+        "p90": 23.899337963451185,
+        "min": 16.39772727238861,
+        "max": 24.255566095234826
+      }
+    }
+  ],
+  "nccl_rows": [],
+  "created_at": "2026-08-22T14:48:51.699701Z"
+}

@@ -63,7 +63,16 @@ def build_thread(results: list[BenchResult]) -> list[Post]:
     # climbing at its last level measured the sweep, not the hardware — on real
     # data the generator otherwise compared a 5090 against the same 5090 swept
     # less deeply and announced a 5.0x gap.
-    rows = [row for row in median_rows(cost_rows(results)) if row.saturated]
+    # Saturation is a sell-side requirement. A GPU row that never found its
+    # ceiling reports a floor on the hardware, so quoting its cost would
+    # understate what the card can do — but a managed endpoint's $/1M is its
+    # published rate card, exact whether or not the sweep found a plateau, and
+    # none of them reach one before they rate-limit. Holding APIs to the GPU
+    # rule deleted every API row and with it the verdict post.
+    rows = [
+        row for row in median_rows(cost_rows(results))
+        if row.saturated or row.coldstart_usd is None
+    ]
     if not rows:
         raise ValueError(
             "no run found its throughput ceiling — refusing to quote an upper "
@@ -79,9 +88,11 @@ def build_thread(results: list[BenchResult]) -> list[Post]:
     # the whole matrix the pair was an 8B against a 27B, and the ratio between
     # them — announced as "8.0x more" — measured the difference between two
     # model sizes while reading as a difference between two rentals.
-    headline_rows = [
-        row for row in rows if short_model(model) in row.label
-    ] or rows
+    # Case-folded: vLLM echoes the HuggingFace id ("Qwen/Qwen3.8-27B") and
+    # OpenRouter lowercases its own, so whichever result happens to be first
+    # decides the casing of the needle but not of the labels.
+    needle = short_model(model).lower()
+    headline_rows = [row for row in rows if needle in row.label.lower()] or rows
     best = headline_rows[0]
     head.text = (
         f"I rented GPUs and measured what it actually costs to serve "
@@ -123,10 +134,17 @@ def build_thread(results: list[BenchResult]) -> list[Post]:
         )
         posts.append(cold)
 
-    if selfhost and api:
+    # Both sides of the verdict must serve the same model. The post opens with
+    # "same model, same workload", and it was pairing the cheapest self-host
+    # row in the matrix — an 8B — against a 27B endpoint, announcing 71.7x
+    # directly beneath a sentence promising that is not what it is.
+    self_headline = [r for r in selfhost if needle in r.label.lower()] or selfhost
+    api_headline = [r for r in api if needle in r.label.lower()] or api
+
+    if self_headline and api_headline:
         verdict = Post()
-        best_self = min(selfhost, key=lambda r: r.usd_per_mtok)
-        best_api = min(api, key=lambda r: r.usd_per_mtok)
+        best_self = min(self_headline, key=lambda r: r.usd_per_mtok)
+        best_api = min(api_headline, key=lambda r: r.usd_per_mtok)
         cheaper = best_self.usd_per_mtok < best_api.usd_per_mtok
         gap = (
             best_api.usd_per_mtok / best_self.usd_per_mtok if cheaper

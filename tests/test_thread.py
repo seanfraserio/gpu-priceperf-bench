@@ -170,3 +170,57 @@ def test_the_headline_ratio_compares_one_model_against_itself():
     named = [m for m in ("Qwen3-8B", "Qwen3.8-27B") if m in head]
     # The 27B substring contains no copy of "Qwen3-8B", so the two are distinct.
     assert len(set(named)) == 1, head
+
+
+def _mixed_matrix():
+    """Self-host rows plus a managed provider, with the model id cased the way
+    each side really reports it: vLLM echoes the HuggingFace id, OpenRouter
+    lowercases its own."""
+    from gppb.models import Target
+    results = _two_model_results()
+    api = _api("chutes", 4.60)
+    api.target = Target(kind="openrouter", model="qwen/qwen3.8-27b", provider="chutes")
+    # An API sweep that was still climbing at its last level, as every real one
+    # was — managed endpoints rate-limit long before they plateau.
+    api.steps = [_step(1, 40.0), _step(8, 300.0), _step(16, 900.0)]
+    return [api] + results
+
+
+def test_the_headline_ratio_survives_a_lowercased_model_id():
+    """The rows are labelled from the vLLM id ("Qwen3.8-27B") while the first
+    result may be an OpenRouter one ("qwen3.8-27b"). Matching case-sensitively
+    selected no rows, fell back to the whole matrix, and reinstated the
+    8x cross-model ratio this filter exists to prevent."""
+    from report.thread import build_thread
+
+    head = build_thread(_mixed_matrix())[0].text
+    named = [m for m in ("Qwen3-8B", "Qwen3.8-27B") if m in head]
+    assert len(set(named)) == 1, head
+
+
+def test_the_verdict_post_survives_an_api_that_never_saturated():
+    """A managed endpoint's $/1M is its rate card — it does not depend on
+    finding a throughput ceiling, and no real provider reached one before
+    rate-limiting. Dropping those rows for non-saturation deleted the
+    self-host-vs-managed verdict, which is the entire point of the project."""
+    from report.thread import build_thread
+
+    texts = [p.text for p in build_thread(_mixed_matrix())]
+    assert any("Self-host vs managed API" in t for t in texts), texts
+
+
+def test_the_verdict_compares_the_same_model_on_both_sides():
+    """The post says "same model, same workload" in its first line. It was
+    pairing the cheapest self-host row in the matrix — an 8B — against a 27B
+    endpoint and calling the result 71.7x. Of every number the generator can
+    emit, that one is stated beside an explicit promise that it is not what it
+    is."""
+    from report.thread import build_thread
+
+    verdict = next(
+        p.text for p in build_thread(_mixed_matrix())
+        if "Self-host vs managed API" in p.text
+    )
+    named = [m for m in ("Qwen3-8B", "Qwen3.8-27B")
+             if m.lower() in verdict.lower()]
+    assert len(set(named)) == 1, verdict

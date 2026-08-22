@@ -1,0 +1,122 @@
+{
+  "schema_version": "1",
+  "run_id": "or-coreweave-72aa9ed9",
+  "valid": true,
+  "invalid_reason": null,
+  "partial": false,
+  "target": {
+    "kind": "openrouter",
+    "model": "qwen/qwen3.8-27b",
+    "precision": null,
+    "tp_size": null,
+    "provider": "coreweave"
+  },
+  "hardware": {
+    "gpu_name": "managed",
+    "gpu_count": 0,
+    "driver_version": null,
+    "vllm_version": null,
+    "peak_vram_bytes": null
+  },
+  "pricing": {
+    "hourly_rate_usd": null,
+    "input_per_mtok_usd": 0.39999999999999997,
+    "output_per_mtok_usd": 3.0
+  },
+  "timings": {
+    "download_seconds": null,
+    "boot_seconds": null
+  },
+  "workload": {
+    "input_tokens": 1024,
+    "output_tokens": 256,
+    "temperature": 0.0,
+    "ignore_eos": true,
+    "max_model_len": 32768
+  },
+  "run_index": 1,
+  "steps": [
+    {
+      "concurrency": 1,
+      "requests_completed": 4,
+      "requests_failed": 0,
+      "wall_seconds": 35.17486387502868,
+      "output_tokens_total": 1024,
+      "output_tokens_per_sec": 29.11169759286425,
+      "ttft_ms": {
+        "p50": 585.9226459288038,
+        "p90": 636.1958340276033,
+        "min": 526.3065829640254,
+        "max": 636.1958340276033
+      },
+      "tpot_ms": {
+        "p50": 30.610008173290687,
+        "p90": 52.9707422566526,
+        "min": 20.632453102107142,
+        "max": 52.9707422566526
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests_completed": 16,
+      "requests_failed": 0,
+      "wall_seconds": 59.75660387496464,
+      "output_tokens_total": 4096,
+      "output_tokens_per_sec": 68.54472534233228,
+      "ttft_ms": {
+        "p50": 634.01400053408,
+        "p90": 2100.2742080017924,
+        "min": 536.2189579755068,
+        "max": 2404.1332920314744
+      },
+      "tpot_ms": {
+        "p50": 29.98751298999231,
+        "p90": 91.92150669793288,
+        "min": 21.835071358309076,
+        "max": 95.99510784324843
+      }
+    },
+    {
+      "concurrency": 16,
+      "requests_completed": 64,
+      "requests_failed": 0,
+      "wall_seconds": 89.34937645902392,
+      "output_tokens_total": 16384,
+      "output_tokens_per_sec": 183.37005415492504,
+      "ttft_ms": {
+        "p50": 4659.604521060828,
+        "p90": 14057.830333011225,
+        "min": 587.306083063595,
+        "max": 23594.79229093995
+      },
+      "tpot_ms": {
+        "p50": 29.646047624303094,
+        "p90": 80.39132792156146,
+        "min": 18.70767630992786,
+        "max": 116.89224591770885
+      }
+    },
+    {
+      "concurrency": 64,
+      "requests_completed": 32,
+      "requests_failed": 224,
+      "wall_seconds": 18.710874707903713,
+      "output_tokens_total": 8192,
+      "output_tokens_per_sec": 437.8202584264858,
+      "ttft_ms": {
+        "p50": 3714.719875017181,
+        "p90": 8994.986333069392,
+        "min": 543.1805410189554,
+        "max": 10100.48566700425
+      },
+      "tpot_ms": {
+        "p50": 24.864129675139754,
+        "p90": 37.304641401640865,
+        "min": 19.792417317683643,
+        "max": 50.14495114503684
+      }
+    }
+  ],
+  "nccl_rows": [],
+  "created_at": "2026-08-22T14:41:34.018584Z"
+}

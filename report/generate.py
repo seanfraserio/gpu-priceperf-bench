@@ -60,10 +60,30 @@ def row_label(result: BenchResult) -> str:
     )
 
 
+def unusable(results: list[BenchResult]) -> list[tuple[str, str]]:
+    """Targets that cannot be quoted, and why.
+
+    A target with no failure-free level is excluded from the table rather than
+    crashing it, but it must not simply disappear: an absent row reads as a
+    target nobody measured, when the truth is that it was measured and could
+    not serve a single level cleanly."""
+    excluded = []
+    for result in results:
+        try:
+            throughput_knee(result.steps)
+        except ValueError as exc:
+            excluded.append((row_label(result), str(exc)))
+    return excluded
+
+
 def cost_rows(results: list[BenchResult]) -> list[CostRow]:
     rows: list[CostRow] = []
     for result in results:
-        knee = throughput_knee(result.steps)
+        try:
+            knee = throughput_knee(result.steps)
+        except ValueError:
+            # Reported by `unusable`, not swallowed here.
+            continue
         levels = tuple(step.concurrency for step in result.steps)
         is_saturated = saturated(result.steps)
         if result.target.kind == "openrouter":
@@ -213,4 +233,6 @@ if __name__ == "__main__":
     Path("report/out/thread.txt").write_text(render_thread(build_thread(results)))
 
     print(render_markdown_table(rows))
+    for label, reason in unusable(results):
+        print(f"excluded: {label} — {reason}")
     print("\nwrote report/out/{cost.svg,throughput.svg,table.md,thread.txt}")
