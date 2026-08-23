@@ -75,6 +75,9 @@ def test_orchestrator_reaps_before_it_starts(monkeypatch):
     from launch import orchestrate
     order = []
     monkeypatch.setattr(orchestrate, "reap", lambda: order.append("reap") or [])
+    # Unstubbed, this reached the real CLI and searched the live marketplace —
+    # a network call to the billing account from a unit test about ordering.
+    monkeypatch.setattr(orchestrate, "preflight", lambda: [])
     monkeypatch.setattr(orchestrate, "current_credit", lambda: 100.0)
     monkeypatch.setattr(orchestrate, "run_one", lambda *a, **k: order.append("run") or "ok")
     orchestrate.run_matrix(limit=1, dry_run=False)
@@ -98,6 +101,7 @@ def test_orchestrator_dry_run_spends_nothing(monkeypatch):
 def test_orchestrator_stops_when_the_budget_gate_trips(monkeypatch):
     """Running out mid-sweep must end the sweep, not keep trying."""
     from launch import orchestrate
+    monkeypatch.setattr(orchestrate, "preflight", lambda: [])
     monkeypatch.setattr(orchestrate, "reap", lambda: [])
     monkeypatch.setattr(orchestrate, "current_credit", lambda: 1.20)
     calls = []
