@@ -61,6 +61,67 @@ TTL_MINUTES="${TTL_MINUTES:-45}"
 
 
 : "${MODEL:?MODEL is required}"
+
+# rate-fetch-begin
+# The network call, kept apart from the logic that decides what to do with it
+# so that logic can be exercised against a stand-in.
+gppb_fetch_instance_json() {
+  # The key is read from the environment inside the program. argv is
+  # world-readable through ps, and this key controls the instance that is
+  # spending money right now.
+  python3 -c '
+import os, urllib.request
+request = urllib.request.Request(
+    "https://console.vast.ai/api/v0/instances/%s/" % os.environ["CONTAINER_ID"],
+    headers={"Authorization": "Bearer %s" % os.environ["CONTAINER_API_KEY"],
+             "User-Agent": "gppb/1"},
+)
+with urllib.request.urlopen(request, timeout=30) as response:
+    print(response.read().decode())
+'
+}
+# rate-fetch-end
+
+# rate-discovery-begin
+# HOURLY_RATE_USD is the denominator of every published $/1M, and it arrives
+# from outside. The orchestrator passes the accepted offer's rate, which is
+# correct and needs no help. A template launched from the web UI has no such
+# plumbing, and a hand-typed rate that is stale or mistyped corrupts the
+# headline in silence — the run succeeds, the result validates, and the number
+# is fiction. So when nobody supplied one, the instance asks the marketplace
+# what it is being charged.
+#
+# dph_total, not dph_base: the all-in figure includes storage, and every tier
+# here rents 120GB. Verified live 2026-08-23 on a probe instance —
+# dph_total 0.05 against dph_base 0.0467 on the same container.
+if [ -z "${HOURLY_RATE_USD:-}" ]; then
+  if [ -z "${CONTAINER_ID:-}" ] || [ -z "${CONTAINER_API_KEY:-}" ]; then
+    echo "HOURLY_RATE_USD is required: none supplied, and this container has" \
+         "no CONTAINER_ID/CONTAINER_API_KEY to look it up with" >&2
+    exit 1
+  fi
+  HOURLY_RATE_USD="$(gppb_fetch_instance_json | python3 -c '
+import json, sys
+payload = json.load(sys.stdin)
+instance = payload.get("instances", payload)
+if isinstance(instance, list):
+    instance = instance[0] if instance else {}
+rate = instance.get("dph_total")
+# An error page must never become a price, and a zero would divide into
+# infinity and publish it.
+if not isinstance(rate, (int, float)) or rate <= 0:
+    sys.exit("no usable dph_total in the marketplace reply")
+print(repr(float(rate)))
+')" || {
+    echo "HOURLY_RATE_USD could not be discovered — refusing to publish a" \
+         "cost derived from a rate nobody knows" >&2
+    exit 1
+  }
+  echo "discovered hourly rate: ${HOURLY_RATE_USD}"
+fi
+export HOURLY_RATE_USD
+# rate-discovery-end
+
 : "${HOURLY_RATE_USD:?HOURLY_RATE_USD is required}"
 TP_SIZE="${TP_SIZE:-1}"
 PRECISION="${PRECISION:-fp8}"
